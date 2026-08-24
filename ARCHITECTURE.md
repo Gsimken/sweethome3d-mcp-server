@@ -59,7 +59,7 @@
 |  |                                                                      | |
 |  |  CommandRegistry -----> CommandHandler (interface)                    | |
 |  |                         CommandDescriptor (auto-discovery)            | |
-|  |                         42 handler-класса                             | |
+|  |                         49 MCP-команд                                 | |
 |  +-------------------------------------|--------------------------------+ |
 |                                        |                                  |
 |                                        v                                  |
@@ -128,7 +128,7 @@ com.sh3d.mcp/
 |   |-- Request.java               # Value object: action + params
 |   |-- Response.java              # Value object: status + data/message
 |
-|-- command/                        # Обработчики команд (42 handler-класса + утилиты)
+|-- command/                        # Обработчики команд (49 команд + утилиты)
 |   |-- CommandHandler.java        # Интерфейс обработчика
 |   |-- CommandDescriptor.java     # Интерфейс auto-discovery (description + schema)
 |   |-- CommandRegistry.java       # Реестр action -> handler
@@ -174,7 +174,7 @@ com.sh3d.mcp/
 
 **`SH3DMcpPlugin extends com.eteks.sweethome3d.plugin.Plugin`**
 - Главный класс плагина, указывается в `ApplicationPlugin.properties`
-- `getActions()` -- создаёт `HomeAccessor`, `CommandRegistry` (44 команды), `HttpMcpServer`
+- `getActions()` -- создаёт `HomeAccessor`, `CommandRegistry` (49 команд), `HttpMcpServer`
 - При `autoStart=true` запускает HTTP-сервер сразу
 - `destroy()` -- останавливает HTTP-сервер при закрытии Home
 
@@ -413,7 +413,7 @@ void onStateChanged(ServerState oldState, ServerState newState);
 с обработчиком. `CommandDescriptor` предоставляет описание и JSON Schema для MCP `tools/list`.
 
 ```
-CommandRegistry (44 команды)
+CommandRegistry (49 команд)
   |
   |-- "get_state"               --> GetStateHandler
   |-- "create_walls"            --> CreateWallsHandler
@@ -555,7 +555,7 @@ public class SH3DMcpPlugin extends Plugin {
 
     private CommandRegistry createCommandRegistry(ExportableView planView) {
         CommandRegistry registry = new CommandRegistry();
-        // 44 команд: checkpoint, create_walls, get_state, inspect_objects, list_installed_plugins, ...
+        // 49 команд: checkpoint, analyze_architecture, check_clearances, get_state, ...
         return registry;
     }
 }
@@ -568,7 +568,7 @@ id=Plugin#SH3DMcp
 name=SH3D MCP Plugin
 class=com.sh3d.mcp.plugin.SH3DMcpPlugin
 description=HTTP MCP server for Model Context Protocol integration
-version=1.2.0
+version=1.3.0
 license=GPL v2
 provider=SH3D MCP Project
 applicationMinimumVersion=6.0
@@ -759,7 +759,7 @@ sh3d-mcp-plugin/
 |   |   |   |-- http/            # HttpMcpServer, McpRequestHandler, JsonRpcProtocol, ...
 |   |   |   |-- server/          # ServerState, ServerStateListener
 |   |   |   |-- protocol/        # JsonUtil, Request, Response
-|   |   |   |-- command/         # CommandHandler, CommandRegistry, 42 handlers, утилиты, shape generators
+|   |   |   |-- command/         # CommandHandler, CommandRegistry, 49 команд, утилиты, shape generators
 |   |   |   |-- bridge/          # HomeAccessor, CheckpointManager, CommandException, PathValidator
 |   |   |   |-- config/          # PluginConfig
 |   |   |
@@ -936,7 +936,7 @@ Claude                    McpRequestHandler    JsonRpcProtocol
 
 **Статус:** Принято (действует)
 
-Паттерн Command + Registry хорошо масштабируется. С 5 команд в MVP вырос до 44 команд,
+Паттерн Command + Registry хорошо масштабируется. С 5 команд в MVP вырос до 49 команд,
 добавление новой команды по-прежнему = 1 класс + 1 строка регистрации. Расширен интерфейсом
 `CommandDescriptor` для auto-discovery (MCP `tools/list`).
 

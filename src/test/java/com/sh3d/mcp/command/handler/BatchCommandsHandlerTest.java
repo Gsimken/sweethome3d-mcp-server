@@ -110,6 +110,25 @@ class BatchCommandsHandlerTest {
     }
 
     @Test
+    void testAtomicBatchRollsBackAllEarlierChanges() {
+        List<Map<String, Object>> commands = Arrays.asList(
+                cmd("create_wall", wallParams(0, 0, 500, 0)),
+                cmd("nonexistent_action", null),
+                cmd("create_wall", wallParams(0, 0, 0, 500)));
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("commands", commands);
+        params.put("atomic", true);
+
+        Response response = handler.execute(new Request("batch_commands", params), accessor);
+
+        assertTrue(response.isOk());
+        assertEquals(true, response.getData().get("rolledBack"));
+        assertEquals(true, response.getData().get("stoppedEarly"));
+        assertEquals(0, home.getWalls().size());
+        assertEquals(2, response.getData().get("executed"));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void testSequentialExecutionDependsOnPrior() {
         // Pre-create walls to get stable IDs (UUIDs can't be predicted)
@@ -403,6 +422,8 @@ class BatchCommandsHandlerTest {
         Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
         assertNotNull(properties);
         assertTrue(properties.containsKey("commands"));
+        assertTrue(properties.containsKey("atomic"));
+        assertTrue(properties.containsKey("stopOnError"));
 
         Map<String, Object> commandsProp = (Map<String, Object>) properties.get("commands");
         assertEquals("array", commandsProp.get("type"));

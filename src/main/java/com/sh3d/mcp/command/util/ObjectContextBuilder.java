@@ -196,6 +196,26 @@ public final class ObjectContextBuilder {
         putIfNotNull(metadata, "currency", piece.getCurrency());
         if (!metadata.isEmpty()) info.put("metadata", metadata);
 
+        if ("staircase".equals(piece.getProperty("mcp.semanticType"))
+                || piece.getStaircaseCutOutShape() != null) {
+            Map<String, Object> staircase = new LinkedHashMap<>();
+            staircase.put("startLevelId", piece.getProperty("mcp.staircase.startLevelId"));
+            staircase.put("endLevelId", piece.getProperty("mcp.staircase.endLevelId"));
+            staircase.put("direction", piece.getProperty("mcp.staircase.direction"));
+            staircase.put("upDirectionDegrees", numericProperty(piece, "mcp.staircase.upDirectionDegrees"));
+            staircase.put("steps", numericProperty(piece, "mcp.staircase.steps"));
+            staircase.put("totalRise", numericProperty(piece, "mcp.staircase.totalRise"));
+            staircase.put("run", numericProperty(piece, "mcp.staircase.run"));
+            staircase.put("riserHeight", numericProperty(piece, "mcp.staircase.riserHeight"));
+            staircase.put("treadDepth", numericProperty(piece, "mcp.staircase.treadDepth"));
+            staircase.put("landingDepth", numericProperty(piece, "mcp.staircase.landingDepth"));
+            staircase.put("openingWidth", numericProperty(piece, "mcp.staircase.openingWidth"));
+            staircase.put("openingDepth", numericProperty(piece, "mcp.staircase.openingDepth"));
+            staircase.put("wallId", piece.getProperty("mcp.staircase.wallId"));
+            staircase.put("cutOutShape", piece.getStaircaseCutOutShape());
+            info.put("staircase", staircase);
+        }
+
         Map<String, Object> appearance = new LinkedHashMap<>();
         appearance.put("color", colorToHex(piece.getColor()));
         appearance.put("texture", textureInfo(piece.getTexture()));
@@ -681,5 +701,16 @@ public final class ObjectContextBuilder {
 
     private static void putIfNotNull(Map<String, Object> map, String key, Object value) {
         if (value != null) map.put(key, value);
+    }
+
+    private static Number numericProperty(HomeObject object, String name) {
+        String value = object.getProperty(name);
+        if (value == null || value.trim().isEmpty()) return null;
+        try {
+            double number = Double.parseDouble(value);
+            return Math.rint(number) == number ? Long.valueOf((long) number) : Double.valueOf(number);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

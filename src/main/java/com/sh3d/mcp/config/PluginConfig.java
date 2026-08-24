@@ -12,7 +12,7 @@ import java.util.Properties;
  */
 public class PluginConfig {
 
-    public static final String PLUGIN_VERSION = "1.2.0";
+    public static final String PLUGIN_VERSION = "1.3.0";
 
     public static final int DEFAULT_PORT = 9877;
     public static final boolean DEFAULT_AUTO_START = true;

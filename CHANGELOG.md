@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `get_document_context` to identify the exact file, process, endpoint and selected level
+  before an AI edits a home.
+- `analyze_architecture` for room-aware wall classification, opening mapping, access warnings,
+  and protected installation detection.
+- `check_clearances` for rotated-footprint collisions, vertical overlap, wall intrusion,
+  door approach, and circulation-gap analysis.
+- `attach_furniture_to_wall` for persistent wall-linked TVs, shelves, and wall cabinets.
+- `configure_staircase` for explicit start/end levels, rise, run, ascent direction, steps,
+  landings, upper-floor openings, and wall relations.
 - `inspect_objects` for focused deep object context: geometry, materials, model metadata,
   editing capabilities, relationships, selection state, and third-party `HomeObject` properties.
 - `list_installed_plugins` to discover local `.sh3p` extensions and report MCP visibility.
@@ -15,12 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `get_state`.
 
 ### Changed
+- `batch_commands` supports atomic all-or-nothing edits with automatic rollback and optional
+  stop-on-error behavior.
+- Generated parametric stairs are tagged automatically as staircases and create an upper-floor
+  cut-out understood by Sweet Home 3D.
+- Furniture lookup now resolves objects nested inside groups.
 - Furniture catalog results now include richer authorship, license, tags, model, capability,
   door/window, and plugin-property metadata.
 - Third-party property values are length-limited to prevent serialized plugin models from
   exhausting the AI context window.
 - Windows setup recognizes the `lib/SweetHome3D.jar` layout used by current installers.
-- Version bumped to 1.2.0.
+- Version bumped to 1.3.0.
 
 ### Documentation
 - Added a Troubleshooting section documenting the macOS Mac App Store sandbox limitation: that build lacks the `com.apple.security.network.server` entitlement, so the MCP server cannot open its listening port. Use a non-sandboxed Sweet Home 3D build instead. (#2)

@@ -37,14 +37,19 @@ class CommandRegistrationTest {
     @Test
     void testMinimumCommandCount() {
         Map<String, CommandHandler> handlers = registry.getHandlers();
-        assertTrue(handlers.size() >= 39,
-                "Expected at least 39 commands, but found " + handlers.size());
+        assertTrue(handlers.size() >= 49,
+                "Expected at least 49 commands, but found " + handlers.size());
     }
 
     @Test
     void testCriticalCommandsRegistered() {
         List<String> criticalCommands = Arrays.asList(
                 "get_state",
+                "get_document_context",
+                "analyze_architecture",
+                "check_clearances",
+                "attach_furniture_to_wall",
+                "configure_staircase",
                 "inspect_objects",
                 "list_installed_plugins",
                 "render_photo",
@@ -71,11 +76,15 @@ class CommandRegistrationTest {
                 "add_dimension_line",
                 "add_label",
                 "add_level",
+                "analyze_architecture",
                 "apply_texture",
+                "attach_furniture_to_wall",
                 "batch_commands",
                 "checkpoint",
+                "check_clearances",
                 "clear_scene",
                 "connect_walls",
+                "configure_staircase",
                 "create_room_polygon",
                 "create_wall",
                 "create_walls",
@@ -89,6 +98,7 @@ class CommandRegistrationTest {
                 "export_to_obj",
                 "generate_shape",
                 "get_cameras",
+                "get_document_context",
                 "get_state",
                 "group_furniture",
                 "inspect_objects",
@@ -166,7 +176,7 @@ class CommandRegistrationTest {
         // Verify the count matches the expected unique set.
         Map<String, CommandHandler> handlers = registry.getHandlers();
         // All keys should be unique (by Map contract), so just verify size is reasonable
-        assertTrue(handlers.size() >= 39,
+        assertTrue(handlers.size() >= 49,
                 "Unexpected handler count: " + handlers.size());
     }
 

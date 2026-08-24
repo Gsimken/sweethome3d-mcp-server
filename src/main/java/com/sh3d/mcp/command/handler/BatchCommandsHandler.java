@@ -9,6 +9,8 @@ import com.sh3d.mcp.protocol.Request;
 import com.sh3d.mcp.protocol.Response;
 
 import com.sh3d.mcp.command.util.SchemaBuilder;
+import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.Level;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,6 +61,14 @@ public class BatchCommandsHandler implements CommandHandler, CommandDescriptor {
                     + " exceeds maximum of " + MAX_BATCH_SIZE);
         }
 
+        Boolean atomicParam = request.getBoolean("atomic");
+        boolean atomic = Boolean.TRUE.equals(atomicParam);
+        Boolean stopParam = request.getBoolean("stopOnError");
+        boolean stopOnError = atomic || Boolean.TRUE.equals(stopParam);
+
+        Home rollbackSnapshot = atomic
+                ? accessor.runOnEDT(() -> accessor.getHome().clone()) : null;
+
         // Auto-checkpoint before batch execution
         if (checkpointManager != null) {
             checkpointManager.autoCheckpoint(accessor,
@@ -76,6 +86,7 @@ public class BatchCommandsHandler implements CommandHandler, CommandDescriptor {
                 results.add(errorResult(i, null,
                         "Command at index " + i + " is not an object"));
                 failed++;
+                if (stopOnError) break;
                 continue;
             }
 
@@ -87,6 +98,7 @@ public class BatchCommandsHandler implements CommandHandler, CommandDescriptor {
                 results.add(errorResult(i, null,
                         "Command at index " + i + " is missing 'action' field"));
                 failed++;
+                if (stopOnError) break;
                 continue;
             }
 
@@ -96,6 +108,7 @@ public class BatchCommandsHandler implements CommandHandler, CommandDescriptor {
                 results.add(errorResult(i, action,
                         "Nested batch_commands is not allowed"));
                 failed++;
+                if (stopOnError) break;
                 continue;
             }
 
@@ -121,12 +134,22 @@ public class BatchCommandsHandler implements CommandHandler, CommandDescriptor {
                 failed++;
             }
             results.add(resultEntry);
+            if (!subResponse.isOk() && stopOnError) break;
+        }
+
+        boolean rolledBack = atomic && failed > 0;
+        if (rolledBack) {
+            restoreSnapshot(accessor, rollbackSnapshot);
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("total", commandsList.size());
         data.put("succeeded", succeeded);
         data.put("failed", failed);
+        data.put("executed", results.size());
+        data.put("atomic", atomic);
+        data.put("rolledBack", rolledBack);
+        data.put("stoppedEarly", results.size() < commandsList.size());
         data.put("results", results);
         return Response.ok(data);
     }
@@ -134,7 +157,9 @@ public class BatchCommandsHandler implements CommandHandler, CommandDescriptor {
     @Override
     public String getDescription() {
         return "Executes multiple commands in a single request. "
-                + "All commands run sequentially; failures do not stop execution. "
+                + "All commands run sequentially. With atomic=true, execution stops at the first "
+                + "failure and the complete pre-batch Home snapshot is restored automatically. "
+                + "With stopOnError=true, execution stops but successful earlier changes remain. "
                 + "Returns individual results for each command. Maximum 50 commands per batch.\n\n"
                 + "Each command uses 'action' and 'params' keys (NOT 'name'/'arguments' as in MCP tools/call). "
                 + "Example: {\"action\":\"create_wall\",\"params\":{\"xStart\":0,\"yStart\":0,\"xEnd\":500,\"yEnd\":0}}";
@@ -154,7 +179,34 @@ public class BatchCommandsHandler implements CommandHandler, CommandDescriptor {
                         .items(itemSchema)
                         .maxItems(MAX_BATCH_SIZE)
                         .build())
+                .boolWithDefault("atomic",
+                        "Rollback the entire batch automatically if any command fails", false)
+                .boolWithDefault("stopOnError",
+                        "Stop at the first failed command; implied by atomic=true", false)
                 .build();
+    }
+
+    private static void restoreSnapshot(HomeAccessor accessor, Home source) {
+        accessor.runOnEDT(() -> {
+            Home home = accessor.getHome();
+            LoadHomeHandler.clearAll(home);
+            LoadHomeHandler.addAll(home, source.getLevels(), home::addLevel);
+            LoadHomeHandler.addAll(home, source.getWalls(), home::addWall);
+            LoadHomeHandler.addAll(home, source.getRooms(), home::addRoom);
+            LoadHomeHandler.addAll(home, source.getFurniture(), home::addPieceOfFurniture);
+            LoadHomeHandler.addAll(home, source.getLabels(), home::addLabel);
+            LoadHomeHandler.addAll(home, source.getDimensionLines(), home::addDimensionLine);
+            LoadHomeHandler.addAll(home, source.getPolylines(), home::addPolyline);
+            LoadHomeHandler.copyCameras(home, source);
+            home.setStoredCameras(source.getStoredCameras());
+            LoadHomeHandler.copyEnvironment(home.getEnvironment(), source.getEnvironment());
+            LoadHomeHandler.copyCompass(home.getCompass(), source.getCompass());
+            home.setBackgroundImage(source.getBackgroundImage());
+            home.setBasePlanLocked(source.isBasePlanLocked());
+            Level selected = source.getSelectedLevel();
+            if (selected != null) home.setSelectedLevel(selected);
+            return null;
+        });
     }
 
     private static Map<String, Object> errorResult(int index, String action, String message) {

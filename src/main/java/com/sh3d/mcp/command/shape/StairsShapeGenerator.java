@@ -3,6 +3,8 @@ package com.sh3d.mcp.command.shape;
 import com.sh3d.mcp.bridge.HomeAccessor;
 import com.sh3d.mcp.protocol.Request;
 import com.sh3d.mcp.protocol.Response;
+import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.sh3d.mcp.bridge.ObjectResolver;
 
 import javax.media.j3d.BranchGroup;
 import javax.vecmath.Point3f;
@@ -140,9 +142,31 @@ public final class StairsShapeGenerator implements ShapeGenerator {
         BranchGroup root = new BranchGroup();
         ShapeGeneratorSupport.addShapeToRoot(root, coordArray, common.transparency);
 
-        return ShapeGeneratorSupport.exportAndAddToScene(root, common.name,
+        Response response = ShapeGeneratorSupport.exportAndAddToScene(root, common.name,
                 common.x, common.y, common.angle, width, totalDepth, totalHeight,
                 common.elevation, common.transparency, common.color, accessor);
+        if (response.isOk()) {
+            Object id = response.getData().get("id");
+            if (id != null) {
+                accessor.runOnEDT(() -> {
+                    HomePieceOfFurniture piece = ObjectResolver.findFurniture(
+                            accessor.getHome(), id.toString());
+                    if (piece != null) {
+                        piece.setProperty("mcp.semanticType", "staircase");
+                        piece.setProperty("mcp.staircase.direction", "straight");
+                        piece.setProperty("mcp.staircase.steps", Integer.toString(steps));
+                        piece.setProperty("mcp.staircase.totalRise", Float.toString(totalHeight));
+                        piece.setProperty("mcp.staircase.run", Float.toString(totalDepth));
+                        piece.setProperty("mcp.staircase.width", Float.toString(width));
+                        piece.setProperty("mcp.staircase.riserHeight", Float.toString(stepH));
+                        piece.setProperty("mcp.staircase.treadDepth", Float.toString(stepD));
+                        piece.setStaircaseCutOutShape("M0,0 v1 h1 v-1 z");
+                    }
+                    return null;
+                });
+            }
+        }
+        return response;
     }
 
     /**

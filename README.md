@@ -93,13 +93,14 @@ For Claude Code, create `.mcp.json` in your project directory:
 
 ## Available Commands
 
-44 commands across 13 categories.
+49 commands across 16 categories.
 
 ### Scene
 
 | Command | Description |
 |---------|-------------|
 | `get_state` | Compact scene state: all object types, selection, camera, compass, home metadata, levels, and plugin properties |
+| `get_document_context` | Identify the exact document, process, MCP endpoint, selected level, file path, and modified state before editing |
 | `clear_scene` | Remove all objects from the scene |
 
 ### Context & plugin compatibility
@@ -112,6 +113,15 @@ For Claude Code, create `.mcp.json` in your project directory:
 `get_state` keeps custom property values short. Use `inspect_objects` when working with
 plugin-generated elements such as roofs, cabinets, fitted layouts, or modeled shapes.
 Long serialized plugin values are truncated to protect the AI context window.
+
+### Architectural understanding & safety
+
+| Command | Description |
+|---------|-------------|
+| `analyze_architecture` | Classify exterior/partition walls, map rooms and openings, and identify fixed or protected installations |
+| `check_clearances` | Detect 3D-aware furniture collisions, wall intrusions, blocked door approaches, and narrow circulation gaps |
+| `attach_furniture_to_wall` | Place TVs, shelves, and cabinets flush with a real wall and persist the relationship |
+| `configure_staircase` | Add levels, rise/run, ascent direction, steps, landing, opening, and wall semantics to a staircase model |
 
 ### Walls
 
@@ -216,7 +226,7 @@ Long serialized plugin values are truncated to protect the AI context window.
 
 | Command | Description |
 |---------|-------------|
-| `batch_commands` | Execute multiple commands in one request |
+| `batch_commands` | Execute multiple commands; `atomic=true` restores the complete pre-batch scene if any command fails |
 
 ## Coordinate System
 
@@ -244,7 +254,7 @@ cd sweethome3d-mcp-server
 ./mvnw test
 
 # The plugin artifact is at:
-# target/sh3d-mcp-plugin-1.2.0.sh3p
+# target/sh3d-mcp-plugin-1.3.0.sh3p
 ```
 
 > **Why the setup script?** `SweetHome3D.jar` is a 46 MB binary excluded from git.
@@ -258,7 +268,7 @@ The plugin is a single self-contained component with no external runtime depende
 
 - **`plugin`** — Entry point (`SH3DMcpPlugin`), settings dialog
 - **`http`** — Streamable HTTP MCP server (JSON-RPC 2.0, port 9877)
-- **`command`** — 44 command handlers, auto-registered via `CommandRegistry`
+- **`command`** — 49 command handlers, auto-registered via `CommandRegistry`
 - **`bridge`** — Thread-safe Sweet Home 3D API wrapper (`HomeAccessor` via EDT, `CheckpointManager`, `ObjectResolver`)
 - **`protocol`** — Hand-written JSON parser (zero external dependencies)
 - **`config`** — Plugin settings, Claude Desktop auto-configurator

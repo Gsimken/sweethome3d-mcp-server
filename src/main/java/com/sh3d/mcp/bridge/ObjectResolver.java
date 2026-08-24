@@ -3,6 +3,7 @@ package com.sh3d.mcp.bridge;
 import com.eteks.sweethome3d.model.DimensionLine;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.Polyline;
@@ -42,9 +43,17 @@ public final class ObjectResolver {
      * @return HomePieceOfFurniture или null если не найдена
      */
     public static HomePieceOfFurniture findFurniture(Home home, String id) {
-        for (HomePieceOfFurniture p : home.getFurniture()) {
-            if (p.getId().equals(id)) {
-                return p;
+        return findFurniture(home.getFurniture(), id);
+    }
+
+    private static HomePieceOfFurniture findFurniture(
+            java.util.List<HomePieceOfFurniture> furniture, String id) {
+        for (HomePieceOfFurniture piece : furniture) {
+            if (piece.getId().equals(id)) return piece;
+            if (piece instanceof HomeFurnitureGroup) {
+                HomePieceOfFurniture nested = findFurniture(
+                        ((HomeFurnitureGroup) piece).getFurniture(), id);
+                if (nested != null) return nested;
             }
         }
         return null;
