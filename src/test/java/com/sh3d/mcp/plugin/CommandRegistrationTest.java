@@ -37,8 +37,8 @@ class CommandRegistrationTest {
     @Test
     void testMinimumCommandCount() {
         Map<String, CommandHandler> handlers = registry.getHandlers();
-        assertTrue(handlers.size() >= 49,
-                "Expected at least 49 commands, but found " + handlers.size());
+        assertTrue(handlers.size() >= 50,
+                "Expected at least 50 commands, but found " + handlers.size());
     }
 
     @Test
@@ -50,8 +50,10 @@ class CommandRegistrationTest {
                 "check_clearances",
                 "attach_furniture_to_wall",
                 "configure_staircase",
+                "layout_alternatives",
                 "inspect_objects",
                 "list_installed_plugins",
+                "layout_alternatives",
                 "render_photo",
                 "batch_commands",
                 "clear_scene",
@@ -176,7 +178,7 @@ class CommandRegistrationTest {
         // Verify the count matches the expected unique set.
         Map<String, CommandHandler> handlers = registry.getHandlers();
         // All keys should be unique (by Map contract), so just verify size is reasonable
-        assertTrue(handlers.size() >= 49,
+        assertTrue(handlers.size() >= 50,
                 "Unexpected handler count: " + handlers.size());
     }
 

@@ -3,6 +3,7 @@ package com.sh3d.mcp.plugin;
 import com.eteks.sweethome3d.plugin.Plugin;
 import com.eteks.sweethome3d.plugin.PluginAction;
 import com.sh3d.mcp.bridge.HomeAccessor;
+import com.sh3d.mcp.bridge.LayoutAlternativeManager;
 import com.sh3d.mcp.command.handler.AddDimensionLineHandler;
 import com.sh3d.mcp.command.handler.AddLabelHandler;
 import com.sh3d.mcp.command.handler.AddLevelHandler;
@@ -42,6 +43,7 @@ import com.sh3d.mcp.command.handler.ListCategoriesHandler;
 import com.sh3d.mcp.command.handler.ListFurnitureCatalogHandler;
 import com.sh3d.mcp.command.handler.ListLevelsHandler;
 import com.sh3d.mcp.command.handler.ListInstalledPluginsHandler;
+import com.sh3d.mcp.command.handler.LayoutAlternativesHandler;
 import com.sh3d.mcp.command.handler.ListTexturesCatalogHandler;
 import com.sh3d.mcp.command.handler.PlaceDoorOrWindowHandler;
 import com.sh3d.mcp.command.handler.PlaceFurnitureHandler;
@@ -206,6 +208,7 @@ public class SH3DMcpPlugin extends Plugin {
     private CommandRegistry createCommandRegistry(ExportableView planView) {
         CommandRegistry registry = new CommandRegistry();
         CheckpointManager checkpointManager = new CheckpointManager();
+        LayoutAlternativeManager alternativeManager = new LayoutAlternativeManager();
         registry.register("checkpoint", new CheckpointHandler(checkpointManager));
         registry.register("restore_checkpoint", new RestoreCheckpointHandler(checkpointManager));
         registry.register("list_checkpoints", new ListCheckpointsHandler(checkpointManager));
@@ -238,6 +241,8 @@ public class SH3DMcpPlugin extends Plugin {
                 config != null ? config.getPort() : PluginConfig.DEFAULT_PORT));
         registry.register("inspect_objects", new InspectObjectsHandler());
         registry.register("list_installed_plugins", new ListInstalledPluginsHandler());
+        registry.register("layout_alternatives",
+                new LayoutAlternativesHandler(alternativeManager, checkpointManager));
         registry.register("list_categories", new ListCategoriesHandler());
         registry.register("list_furniture_catalog", new ListFurnitureCatalogHandler());
         registry.register("list_levels", new ListLevelsHandler());

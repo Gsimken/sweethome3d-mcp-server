@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `attach_furniture_to_wall` for persistent wall-linked TVs, shelves, and wall cabinets.
 - `configure_staircase` for explicit start/end levels, rise, run, ascent direction, steps,
   landings, upper-floor openings, and wall relations.
+- `layout_alternatives` to save, compare, and restore up to ten independent named proposals
+  without truncating the checkpoint timeline or modifying stored alternatives.
 - `inspect_objects` for focused deep object context: geometry, materials, model metadata,
   editing capabilities, relationships, selection state, and third-party `HomeObject` properties.
 - `list_installed_plugins` to discover local `.sh3p` extensions and report MCP visibility.

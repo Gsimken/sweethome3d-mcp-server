@@ -93,7 +93,7 @@ For Claude Code, create `.mcp.json` in your project directory:
 
 ## Available Commands
 
-49 commands across 16 categories.
+50 commands across 16 categories.
 
 ### Scene
 
@@ -122,6 +122,7 @@ Long serialized plugin values are truncated to protect the AI context window.
 | `check_clearances` | Detect 3D-aware furniture collisions, wall intrusions, blocked door approaches, and narrow circulation gaps |
 | `attach_furniture_to_wall` | Place TVs, shelves, and cabinets flush with a real wall and persist the relationship |
 | `configure_staircase` | Add levels, rise/run, ascent direction, steps, landing, opening, and wall semantics to a staircase model |
+| `layout_alternatives` | Save, compare, and restore independent named layout proposals without losing the base or another alternative |
 
 ### Walls
 
@@ -268,7 +269,7 @@ The plugin is a single self-contained component with no external runtime depende
 
 - **`plugin`** — Entry point (`SH3DMcpPlugin`), settings dialog
 - **`http`** — Streamable HTTP MCP server (JSON-RPC 2.0, port 9877)
-- **`command`** — 49 command handlers, auto-registered via `CommandRegistry`
+- **`command`** — 50 command handlers, auto-registered via `CommandRegistry`
 - **`bridge`** — Thread-safe Sweet Home 3D API wrapper (`HomeAccessor` via EDT, `CheckpointManager`, `ObjectResolver`)
 - **`protocol`** — Hand-written JSON parser (zero external dependencies)
 - **`config`** — Plugin settings, Claude Desktop auto-configurator
