@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `inspect_objects` for focused deep object context: geometry, materials, model metadata,
+  editing capabilities, relationships, selection state, and third-party `HomeObject` properties.
+- `list_installed_plugins` to discover local `.sh3p` extensions and report MCP visibility.
+- Polylines, current selection, compass, document metadata, and compact custom properties to
+  `get_state`.
+
+### Changed
+- Furniture catalog results now include richer authorship, license, tags, model, capability,
+  door/window, and plugin-property metadata.
+- Third-party property values are length-limited to prevent serialized plugin models from
+  exhausting the AI context window.
+- Windows setup recognizes the `lib/SweetHome3D.jar` layout used by current installers.
+- Version bumped to 1.2.0.
+
 ### Documentation
 - Added a Troubleshooting section documenting the macOS Mac App Store sandbox limitation: that build lacks the `com.apple.security.network.server` entitlement, so the MCP server cannot open its listening port. Use a non-sandboxed Sweet Home 3D build instead. (#2)
 

@@ -45,6 +45,8 @@ class CommandRegistrationTest {
     void testCriticalCommandsRegistered() {
         List<String> criticalCommands = Arrays.asList(
                 "get_state",
+                "inspect_objects",
+                "list_installed_plugins",
                 "render_photo",
                 "batch_commands",
                 "clear_scene",
@@ -89,9 +91,11 @@ class CommandRegistrationTest {
                 "get_cameras",
                 "get_state",
                 "group_furniture",
+                "inspect_objects",
                 "list_categories",
                 "list_checkpoints",
                 "list_furniture_catalog",
+                "list_installed_plugins",
                 "list_levels",
                 "list_textures_catalog",
                 "load_home",

@@ -50,7 +50,7 @@ The script first looks for an existing Sweet Home 3D installation on your machin
 mvn clean package
 ```
 
-The plugin artifact is created at `target/sh3d-mcp-plugin-1.0.0.sh3p`.
+The plugin artifact is created at `target/sh3d-mcp-plugin-1.2.0.sh3p`.
 
 ### 4. Run tests
 
@@ -62,10 +62,10 @@ mvn test
 
 ```bash
 # Linux / macOS
-cp target/sh3d-mcp-plugin-1.0.0.sh3p ~/.sweethome3d/plugins/
+cp target/sh3d-mcp-plugin-1.2.0.sh3p ~/.sweethome3d/plugins/
 
 # Windows (Git Bash)
-cp target/sh3d-mcp-plugin-1.0.0.sh3p "$APPDATA/eTeks/Sweet Home 3D/plugins/"
+cp target/sh3d-mcp-plugin-1.2.0.sh3p "$APPDATA/eTeks/Sweet Home 3D/plugins/"
 ```
 
 Restart Sweet Home 3D. The plugin activates automatically and starts the MCP server on port 9877.

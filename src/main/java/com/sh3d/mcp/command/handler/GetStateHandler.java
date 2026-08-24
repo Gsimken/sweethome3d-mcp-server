@@ -14,7 +14,9 @@ import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.ObserverCamera;
+import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
+import com.eteks.sweethome3d.model.Selectable;
 import com.eteks.sweethome3d.model.Wall;
 import com.sh3d.mcp.bridge.HomeAccessor;
 import com.sh3d.mcp.protocol.Request;
@@ -25,6 +27,7 @@ import static com.sh3d.mcp.command.util.FormatUtil.round2;
 import static com.sh3d.mcp.command.util.FormatUtil.textureName;
 
 import com.sh3d.mcp.command.util.SchemaBuilder;
+import com.sh3d.mcp.command.util.ObjectContextBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -52,29 +55,39 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
             Map<String, Object> result = new LinkedHashMap<>();
 
             // --- Walls ---
-            List<Object> wallList = buildWalls(home.getWalls());
+            List<Object> wallList = buildWalls(home.getWalls(), home);
             result.put("wallCount", wallList.size());
             result.put("walls", wallList);
 
             // --- Furniture ---
-            List<Object> furnitureList = buildFurniture(home.getFurniture());
+            List<Object> furnitureList = buildFurniture(home.getFurniture(), home);
             result.put("furnitureCount", furnitureList.size());
             result.put("furniture", furnitureList);
 
             // --- Rooms ---
-            List<Object> roomList = buildRooms(home.getRooms());
+            List<Object> roomList = buildRooms(home.getRooms(), home);
             result.put("roomCount", roomList.size());
             result.put("rooms", roomList);
 
             // --- Labels ---
-            List<Object> labelList = buildLabels(home.getLabels());
+            List<Object> labelList = buildLabels(home.getLabels(), home);
             result.put("labelCount", labelList.size());
             result.put("labels", labelList);
 
             // --- Dimension lines ---
-            List<Object> dimList = buildDimensionLines(home.getDimensionLines());
+            List<Object> dimList = buildDimensionLines(home.getDimensionLines(), home);
             result.put("dimensionLineCount", dimList.size());
             result.put("dimensionLines", dimList);
+
+            // --- Polylines (previously omitted from the scene snapshot) ---
+            List<Object> polylineList = buildPolylines(home.getPolylines(), home);
+            result.put("polylineCount", polylineList.size());
+            result.put("polylines", polylineList);
+
+            // --- Current UI selection ---
+            List<Object> selection = buildSelection(home.getSelectedItems());
+            result.put("selectedObjectCount", selection.size());
+            result.put("selection", selection);
 
             // --- Camera ---
             result.put("camera", buildCamera(home));
@@ -99,6 +112,12 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
             // --- Environment ---
             result.put("environment", buildEnvironment(home.getEnvironment()));
 
+            // --- Home metadata and plugin-owned document properties ---
+            result.put("home", buildHomeInfo(home));
+
+            // --- Compass / geographic context used for sunlight and orientation ---
+            result.put("compass", buildCompass(home));
+
             return result;
         });
 
@@ -120,25 +139,29 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
 
     // --- Wall builders ---
 
-    private List<Object> buildWalls(Collection<Wall> walls) {
+    private List<Object> buildWalls(Collection<Wall> walls, Home home) {
         List<Object> list = new ArrayList<>();
         for (Wall w : walls) {
-            list.add(FormatUtil.buildWallInfo(w));
+            Map<String, Object> info = FormatUtil.buildWallInfo(w);
+            ObjectContextBuilder.addSummary(info, w, home);
+            info.put("wallAtStartId", w.getWallAtStart() != null ? w.getWallAtStart().getId() : null);
+            info.put("wallAtEndId", w.getWallAtEnd() != null ? w.getWallAtEnd().getId() : null);
+            list.add(info);
         }
         return list;
     }
 
     // --- Furniture builders ---
 
-    private List<Object> buildFurniture(List<HomePieceOfFurniture> furniture) {
+    private List<Object> buildFurniture(List<HomePieceOfFurniture> furniture, Home home) {
         List<Object> list = new ArrayList<>();
         for (HomePieceOfFurniture piece : furniture) {
-            list.add(buildFurniturePiece(piece));
+            list.add(buildFurniturePiece(piece, home));
         }
         return list;
     }
 
-    private Map<String, Object> buildFurniturePiece(HomePieceOfFurniture piece) {
+    private Map<String, Object> buildFurniturePiece(HomePieceOfFurniture piece, Home home) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", piece.getId());
         item.put("name", piece.getName());
@@ -152,13 +175,19 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
         item.put("height", round2(piece.getHeight()));
         item.put("isDoorOrWindow", piece.isDoorOrWindow());
         item.put("visible", piece.isVisible());
+        item.put("color", colorToHex(piece.getColor()));
+        item.put("texture", textureName(piece.getTexture()));
+        item.put("modelMirrored", piece.isModelMirrored());
+        item.put("pitch", round2(Math.toDegrees(piece.getPitch())));
+        item.put("roll", round2(Math.toDegrees(piece.getRoll())));
+        ObjectContextBuilder.addSummary(item, piece, home);
 
         if (piece instanceof HomeFurnitureGroup) {
             item.put("isGroup", true);
             HomeFurnitureGroup group = (HomeFurnitureGroup) piece;
             List<Object> groupItems = new ArrayList<>();
             for (HomePieceOfFurniture child : group.getFurniture()) {
-                groupItems.add(buildFurniturePiece(child));
+                groupItems.add(buildFurniturePiece(child, home));
             }
             item.put("groupItems", groupItems);
         }
@@ -170,17 +199,19 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
 
     // --- Room builders ---
 
-    private List<Object> buildRooms(List<Room> rooms) {
+    private List<Object> buildRooms(List<Room> rooms, Home home) {
         List<Object> list = new ArrayList<>();
         for (Room room : rooms) {
-            list.add(FormatUtil.buildRoomInfo(room));
+            Map<String, Object> info = FormatUtil.buildRoomInfo(room);
+            ObjectContextBuilder.addSummary(info, room, home);
+            list.add(info);
         }
         return list;
     }
 
     // --- Label builders ---
 
-    private List<Object> buildLabels(Collection<Label> labels) {
+    private List<Object> buildLabels(Collection<Label> labels, Home home) {
         List<Object> list = new ArrayList<>();
         for (Label label : labels) {
             Map<String, Object> item = new LinkedHashMap<>();
@@ -190,6 +221,11 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
             item.put("y", round2(label.getY()));
             item.put("angle", round2(Math.toDegrees(label.getAngle())));
             item.put("color", colorToHex(label.getColor()));
+            item.put("outlineColor", colorToHex(label.getOutlineColor()));
+            item.put("elevation", round2(label.getElevation()));
+            item.put("pitch", label.getPitch() != null
+                    ? round2(Math.toDegrees(label.getPitch())) : null);
+            ObjectContextBuilder.addSummary(item, label, home);
             Level level = label.getLevel();
             item.put("level", level != null ? level.getName() : null);
             list.add(item);
@@ -199,7 +235,7 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
 
     // --- Dimension line builders ---
 
-    private List<Object> buildDimensionLines(Collection<DimensionLine> dimensionLines) {
+    private List<Object> buildDimensionLines(Collection<DimensionLine> dimensionLines, Home home) {
         List<Object> list = new ArrayList<>();
         for (DimensionLine dim : dimensionLines) {
             Map<String, Object> item = new LinkedHashMap<>();
@@ -210,11 +246,90 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
             item.put("yEnd", round2(dim.getYEnd()));
             item.put("offset", round2(dim.getOffset()));
             item.put("length", round2(dim.getLength()));
+            item.put("elevationStart", round2(dim.getElevationStart()));
+            item.put("elevationEnd", round2(dim.getElevationEnd()));
+            item.put("visibleIn3D", dim.isVisibleIn3D());
+            item.put("color", colorToHex(dim.getColor()));
+            ObjectContextBuilder.addSummary(item, dim, home);
             Level level = dim.getLevel();
             item.put("level", level != null ? level.getName() : null);
             list.add(item);
         }
         return list;
+    }
+
+    // --- Polyline builders ---
+
+    private List<Object> buildPolylines(Collection<Polyline> polylines, Home home) {
+        List<Object> list = new ArrayList<>();
+        for (Polyline line : polylines) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", line.getId());
+            item.put("points", ObjectContextBuilder.points(line.getPoints()));
+            item.put("length", round2(line.getLength()));
+            item.put("thickness", round2(line.getThickness()));
+            item.put("color", colorToHex(line.getColor()));
+            item.put("closedPath", line.isClosedPath());
+            item.put("visibleIn3D", line.isVisibleIn3D());
+            Level level = line.getLevel();
+            item.put("level", level != null ? level.getName() : null);
+            ObjectContextBuilder.addSummary(item, line, home);
+            list.add(item);
+        }
+        return list;
+    }
+
+    private List<Object> buildSelection(List<Selectable> selectedItems) {
+        List<Object> list = new ArrayList<>();
+        for (Selectable selected : selectedItems) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            if (selected instanceof com.eteks.sweethome3d.model.HomeObject) {
+                item.put("id", ((com.eteks.sweethome3d.model.HomeObject) selected).getId());
+            }
+            item.put("objectType", ObjectContextBuilder.objectType(selected));
+            list.add(item);
+        }
+        return list;
+    }
+
+    private Map<String, Object> buildHomeInfo(Home home) {
+        Map<String, Object> info = new LinkedHashMap<>();
+        info.put("name", home.getName());
+        info.put("version", home.getVersion());
+        info.put("modified", home.isModified());
+        info.put("recovered", home.isRecovered());
+        info.put("repaired", home.isRepaired());
+        info.put("wallHeight", round2(home.getWallHeight()));
+        info.put("basePlanLocked", home.isBasePlanLocked());
+        info.put("allLevelsSelection", home.isAllLevelsSelection());
+        Map<String, Object> properties = new LinkedHashMap<>();
+        List<String> names = new ArrayList<>(home.getPropertyNames());
+        java.util.Collections.sort(names);
+        for (String name : names) {
+            String value = home.getProperty(name);
+            if (value != null && value.length() > ObjectContextBuilder.SUMMARY_PROPERTY_LIMIT) {
+                value = value.substring(0, ObjectContextBuilder.SUMMARY_PROPERTY_LIMIT)
+                        + "... [truncated]";
+            }
+            properties.put(name, value);
+        }
+        if (!properties.isEmpty()) info.put("customProperties", properties);
+        return info;
+    }
+
+    private Map<String, Object> buildCompass(Home home) {
+        com.eteks.sweethome3d.model.Compass compass = home.getCompass();
+        Map<String, Object> info = new LinkedHashMap<>();
+        info.put("id", compass.getId());
+        info.put("x", round2(compass.getX()));
+        info.put("y", round2(compass.getY()));
+        info.put("diameter", round2(compass.getDiameter()));
+        info.put("visible", compass.isVisible());
+        info.put("northDirection", round2(Math.toDegrees(compass.getNorthDirection())));
+        info.put("latitude", round2(Math.toDegrees(compass.getLatitude())));
+        info.put("longitude", round2(Math.toDegrees(compass.getLongitude())));
+        info.put("timeZone", compass.getTimeZone());
+        return info;
     }
 
     // --- Camera builder ---
@@ -265,10 +380,11 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
     public String getDescription() {
         return "Returns the full state of the Sweet Home 3D scene: walls with coordinates, "
                 + "furniture with positions and IDs, rooms with polygons, labels, dimension lines, "
-                + "camera settings, environment (ground, sky, light, wallsAlpha, drawingMode), "
-                + "and levels. Each object has a stable string 'id' field that can be "
+                + "polylines, current selection, camera and compass settings, environment, home "
+                + "metadata, levels, and compact custom properties written by other plugins. "
+                + "Each object has a stable string 'id' field that can be "
                 + "used in subsequent commands (delete, modify, etc.). Always call this before "
-                + "making changes to understand the current scene.";
+                + "making changes, then call inspect_objects for deep details on relevant IDs.";
     }
 
     @Override

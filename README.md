@@ -93,14 +93,25 @@ For Claude Code, create `.mcp.json` in your project directory:
 
 ## Available Commands
 
-42 commands across 12 categories.
+44 commands across 13 categories.
 
 ### Scene
 
 | Command | Description |
 |---------|-------------|
-| `get_state` | Full scene state: walls, furniture, rooms, camera, labels, levels |
+| `get_state` | Compact scene state: all object types, selection, camera, compass, home metadata, levels, and plugin properties |
 | `clear_scene` | Remove all objects from the scene |
+
+### Context & plugin compatibility
+
+| Command | Description |
+|---------|-------------|
+| `inspect_objects` | Deep context for explicit object IDs or the current selection: geometry, materials, catalog metadata, editing capabilities, relationships, and third-party plugin properties |
+| `list_installed_plugins` | List installed `.sh3p` plugins and explain which of their data is visible through the shared Sweet Home 3D model |
+
+`get_state` keeps custom property values short. Use `inspect_objects` when working with
+plugin-generated elements such as roofs, cabinets, fitted layouts, or modeled shapes.
+Long serialized plugin values are truncated to protect the AI context window.
 
 ### Walls
 
@@ -125,7 +136,7 @@ For Claude Code, create `.mcp.json` in your project directory:
 | Command | Description |
 |---------|-------------|
 | `list_categories` | All furniture catalog categories with item counts |
-| `list_furniture_catalog` | Browse catalog; filter by name, category, or type |
+| `list_furniture_catalog` | Browse catalog with dimensions, authorship, license, tags, capabilities, model size, and plugin properties; filter by name, category, or type |
 | `place_furniture` | Place a catalog item in the scene |
 | `modify_furniture` | Move, rotate, resize, recolor furniture by ID |
 | `delete_furniture` | Delete furniture by ID |
@@ -233,7 +244,7 @@ cd sweethome3d-mcp-server
 ./mvnw test
 
 # The plugin artifact is at:
-# target/sh3d-mcp-plugin-1.0.0.sh3p
+# target/sh3d-mcp-plugin-1.2.0.sh3p
 ```
 
 > **Why the setup script?** `SweetHome3D.jar` is a 46 MB binary excluded from git.
@@ -247,7 +258,7 @@ The plugin is a single self-contained component with no external runtime depende
 
 - **`plugin`** — Entry point (`SH3DMcpPlugin`), settings dialog
 - **`http`** — Streamable HTTP MCP server (JSON-RPC 2.0, port 9877)
-- **`command`** — 42 command handlers, auto-registered via `CommandRegistry`
+- **`command`** — 44 command handlers, auto-registered via `CommandRegistry`
 - **`bridge`** — Thread-safe Sweet Home 3D API wrapper (`HomeAccessor` via EDT, `CheckpointManager`, `ObjectResolver`)
 - **`protocol`** — Hand-written JSON parser (zero external dependencies)
 - **`config`** — Plugin settings, Claude Desktop auto-configurator

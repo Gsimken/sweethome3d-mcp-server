@@ -3,6 +3,8 @@ import com.sh3d.mcp.command.CommandHandler;
 import com.sh3d.mcp.command.CommandDescriptor;
 
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
+import com.eteks.sweethome3d.model.CatalogDoorOrWindow;
+import com.eteks.sweethome3d.model.CatalogLight;
 import com.eteks.sweethome3d.model.FurnitureCatalog;
 import com.eteks.sweethome3d.model.FurnitureCategory;
 import com.sh3d.mcp.bridge.HomeAccessor;
@@ -13,6 +15,9 @@ import static com.sh3d.mcp.command.util.FormatUtil.round2;
 import com.sh3d.mcp.command.util.SchemaBuilder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,7 +94,53 @@ public class ListFurnitureCatalogHandler implements CommandHandler, CommandDescr
                 item.put("width", round2(piece.getWidth()));
                 item.put("depth", round2(piece.getDepth()));
                 item.put("height", round2(piece.getHeight()));
+                item.put("elevation", round2(piece.getElevation()));
+                item.put("dropOnTopElevation", round2(piece.getDropOnTopElevation()));
                 item.put("isDoorOrWindow", piece.isDoorOrWindow());
+                item.put("isLight", piece instanceof CatalogLight);
+                putIfNotNull(item, "description", piece.getDescription());
+                putIfNotNull(item, "information", piece.getInformation());
+                putIfNotNull(item, "creator", piece.getCreator());
+                putIfNotNull(item, "license", piece.getLicense());
+                if (piece.getTags() != null && piece.getTags().length > 0) {
+                    item.put("tags", Arrays.asList(piece.getTags()));
+                }
+                putIfNotNull(item, "modelSizeBytes", piece.getModelSize());
+                putIfNotNull(item, "creationDate", piece.getCreationDate());
+                putIfNotNull(item, "grade", piece.getGrade());
+                item.put("movable", piece.isMovable());
+                item.put("modifiable", piece.isModifiable());
+                item.put("resizable", piece.isResizable());
+                item.put("deformable", piece.isDeformable());
+                item.put("widthDepthDeformable", piece.isWidthDepthDeformable());
+                item.put("texturable", piece.isTexturable());
+                item.put("horizontallyRotatable", piece.isHorizontallyRotatable());
+                if (piece instanceof CatalogDoorOrWindow) {
+                    CatalogDoorOrWindow door = (CatalogDoorOrWindow) piece;
+                    item.put("wallThickness", round2(door.getWallThickness()));
+                    item.put("wallDistance", round2(door.getWallDistance()));
+                    item.put("wallCutOutOnBothSides", door.isWallCutOutOnBothSides());
+                    item.put("cutOutShape", door.getCutOutShape());
+                    item.put("sashCount", door.getSashes() != null ? door.getSashes().length : 0);
+                }
+                Collection<String> propertyNames = piece.getPropertyNames();
+                if (propertyNames != null && !propertyNames.isEmpty()) {
+                    List<String> names = new ArrayList<>(propertyNames);
+                    Collections.sort(names);
+                    Map<String, Object> properties = new LinkedHashMap<>();
+                    for (String name : names) {
+                        if (piece.isContentProperty(name)) {
+                            properties.put(name, "[content]");
+                        } else {
+                            String value = piece.getProperty(name);
+                            if (value != null && value.length() > 256) {
+                                value = value.substring(0, 256) + "... [truncated]";
+                            }
+                            properties.put(name, value);
+                        }
+                    }
+                    item.put("customProperties", properties);
+                }
                 results.add(item);
             }
         }
@@ -120,6 +171,10 @@ public class ListFurnitureCatalogHandler implements CommandHandler, CommandDescr
                                 + "'doorOrWindow' (only doors and windows)",
                         "all", "furniture", "doorOrWindow")
                 .build();
+    }
+
+    private static void putIfNotNull(Map<String, Object> map, String key, Object value) {
+        if (value != null) map.put(key, value);
     }
 
 }

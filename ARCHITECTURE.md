@@ -174,7 +174,7 @@ com.sh3d.mcp/
 
 **`SH3DMcpPlugin extends com.eteks.sweethome3d.plugin.Plugin`**
 - Главный класс плагина, указывается в `ApplicationPlugin.properties`
-- `getActions()` -- создаёт `HomeAccessor`, `CommandRegistry` (42 команды), `HttpMcpServer`
+- `getActions()` -- создаёт `HomeAccessor`, `CommandRegistry` (44 команды), `HttpMcpServer`
 - При `autoStart=true` запускает HTTP-сервер сразу
 - `destroy()` -- останавливает HTTP-сервер при закрытии Home
 
@@ -413,7 +413,7 @@ void onStateChanged(ServerState oldState, ServerState newState);
 с обработчиком. `CommandDescriptor` предоставляет описание и JSON Schema для MCP `tools/list`.
 
 ```
-CommandRegistry (42 команды)
+CommandRegistry (44 команды)
   |
   |-- "get_state"               --> GetStateHandler
   |-- "create_walls"            --> CreateWallsHandler
@@ -555,7 +555,7 @@ public class SH3DMcpPlugin extends Plugin {
 
     private CommandRegistry createCommandRegistry(ExportableView planView) {
         CommandRegistry registry = new CommandRegistry();
-        // 42 команды: checkpoint, create_walls, place_furniture, get_state, list_categories, ...
+        // 44 команд: checkpoint, create_walls, get_state, inspect_objects, list_installed_plugins, ...
         return registry;
     }
 }
@@ -568,7 +568,7 @@ id=Plugin#SH3DMcp
 name=SH3D MCP Plugin
 class=com.sh3d.mcp.plugin.SH3DMcpPlugin
 description=HTTP MCP server for Model Context Protocol integration
-version=1.1.0
+version=1.2.0
 license=GPL v2
 provider=SH3D MCP Project
 applicationMinimumVersion=6.0
@@ -936,7 +936,7 @@ Claude                    McpRequestHandler    JsonRpcProtocol
 
 **Статус:** Принято (действует)
 
-Паттерн Command + Registry хорошо масштабируется. С 5 команд в MVP вырос до 42 команды,
+Паттерн Command + Registry хорошо масштабируется. С 5 команд в MVP вырос до 44 команд,
 добавление новой команды по-прежнему = 1 класс + 1 строка регистрации. Расширен интерфейсом
 `CommandDescriptor` для auto-discovery (MCP `tools/list`).
 

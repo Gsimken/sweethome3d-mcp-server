@@ -26,7 +26,9 @@ mkdir -p lib
 # 2. Try known installation paths (Windows Git Bash, macOS, Linux)
 INSTALL_PATHS=(
   "/c/Program Files/Sweet Home 3D/SweetHome3D.jar"
+  "/c/Program Files/Sweet Home 3D/lib/SweetHome3D.jar"
   "/c/Program Files (x86)/Sweet Home 3D/SweetHome3D.jar"
+  "/c/Program Files (x86)/Sweet Home 3D/lib/SweetHome3D.jar"
   "$HOME/Applications/Sweet Home 3D.app/Contents/Resources/Java/SweetHome3D.jar"
   "/Applications/Sweet Home 3D.app/Contents/Resources/Java/SweetHome3D.jar"
   "/usr/share/sweethome3d/SweetHome3D.jar"

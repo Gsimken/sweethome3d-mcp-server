@@ -26,7 +26,9 @@ if not exist lib mkdir lib
 :: 2. Try known installation paths
 for %%P in (
     "%ProgramFiles%\Sweet Home 3D\SweetHome3D.jar"
+    "%ProgramFiles%\Sweet Home 3D\lib\SweetHome3D.jar"
     "%ProgramFiles(x86)%\Sweet Home 3D\SweetHome3D.jar"
+    "%ProgramFiles(x86)%\Sweet Home 3D\lib\SweetHome3D.jar"
 ) do (
     if exist %%P (
         echo Found Sweet Home 3D at: %%P

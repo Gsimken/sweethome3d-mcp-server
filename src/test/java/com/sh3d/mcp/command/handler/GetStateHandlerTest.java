@@ -7,6 +7,7 @@ import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.Room;
+import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Wall;
 import com.sh3d.mcp.bridge.HomeAccessor;
 import com.sh3d.mcp.protocol.Request;
@@ -49,6 +50,8 @@ class GetStateHandlerTest {
         assertEquals(0, resp.getData().get("roomCount"));
         assertEquals(0, resp.getData().get("labelCount"));
         assertEquals(0, resp.getData().get("dimensionLineCount"));
+        assertEquals(0, resp.getData().get("polylineCount"));
+        assertEquals(0, resp.getData().get("selectedObjectCount"));
         assertEquals(0, resp.getData().get("levelCount"));
         assertNull(resp.getData().get("boundingBox"));
 
@@ -57,10 +60,14 @@ class GetStateHandlerTest {
         assertTrue(((List<Object>) resp.getData().get("rooms")).isEmpty());
         assertTrue(((List<Object>) resp.getData().get("labels")).isEmpty());
         assertTrue(((List<Object>) resp.getData().get("dimensionLines")).isEmpty());
+        assertTrue(((List<Object>) resp.getData().get("polylines")).isEmpty());
+        assertTrue(((List<Object>) resp.getData().get("selection")).isEmpty());
         assertTrue(((List<Object>) resp.getData().get("levels")).isEmpty());
 
         // Camera is always present
         assertNotNull(resp.getData().get("camera"));
+        assertNotNull(resp.getData().get("compass"));
+        assertNotNull(resp.getData().get("home"));
     }
 
     // --- Walls ---
@@ -228,6 +235,27 @@ class GetStateHandlerTest {
         assertEquals(0.0, (double) d.get("yEnd"), 0.01);
         assertEquals(20.0, (double) d.get("offset"), 0.01);
         assertEquals(500.0, (double) d.get("length"), 0.01);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testPolylinesSelectionAndPluginProperties() {
+        Polyline line = new Polyline(new float[][]{{0, 0}, {100, 50}, {200, 50}});
+        line.setProperty("external.plugin.type", "guide");
+        home.addPolyline(line);
+        home.setSelectedItems(Collections.singletonList(line));
+
+        Response resp = execute();
+
+        assertEquals(1, resp.getData().get("polylineCount"));
+        assertEquals(1, resp.getData().get("selectedObjectCount"));
+        List<Map<String, Object>> polylines =
+                (List<Map<String, Object>>) resp.getData().get("polylines");
+        assertEquals("polyline", polylines.get(0).get("objectType"));
+        assertEquals(true, polylines.get(0).get("selected"));
+        Map<String, Object> custom =
+                (Map<String, Object>) polylines.get(0).get("customProperties");
+        assertEquals("guide", custom.get("external.plugin.type"));
     }
 
     // --- Camera ---
