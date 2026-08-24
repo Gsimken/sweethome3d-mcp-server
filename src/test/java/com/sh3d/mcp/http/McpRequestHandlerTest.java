@@ -1,6 +1,9 @@
 package com.sh3d.mcp.http;
 
 import com.sh3d.mcp.bridge.HomeAccessor;
+import com.sh3d.mcp.bridge.HomeIdentity;
+import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.UserPreferences;
 import com.sh3d.mcp.command.CommandDescriptor;
 import com.sh3d.mcp.command.CommandHandler;
 import com.sh3d.mcp.command.CommandRegistry;
@@ -100,6 +103,65 @@ class McpRequestHandlerTest {
     }
 
     @Test
+    void testEveryToolSchemaIncludesDocumentIdentityGuard() throws Exception {
+        registerTestTool("create_wall", "Create a wall", null);
+        String sessionId = initializeSession();
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}";
+        HttpExchange exchange = createPostExchange(body, sessionId, null);
+        ByteArrayOutputStream responseBody = captureResponseBody(exchange);
+
+        handler.handle(exchange);
+
+        String response = responseBody.toString(StandardCharsets.UTF_8.name());
+        assertTrue(response.contains("\"homeId\""));
+        assertTrue(response.contains("\"documentId\""));
+    }
+
+    @Test
+    void testMismatchedHomeIdRejectsToolBeforeDispatch() throws Exception {
+        Home home = new Home();
+        HomeAccessor realAccessor = new HomeAccessor(home, mock(UserPreferences.class));
+        handler = new McpRequestHandler(commandRegistry, realAccessor);
+        java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
+        commandRegistry.register("edit", (request, accessor) -> {
+            called.set(true);
+            return Response.ok(Collections.emptyMap());
+        });
+        String sessionId = initializeSession();
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"edit\",\"arguments\":{\"homeId\":\"wrong-home\"}}}";
+        HttpExchange exchange = createPostExchange(body, sessionId, null);
+        ByteArrayOutputStream responseBody = captureResponseBody(exchange);
+
+        handler.handle(exchange);
+
+        assertFalse(called.get());
+        String response = responseBody.toString(StandardCharsets.UTF_8.name());
+        assertTrue(response.contains("Document mismatch"));
+        assertTrue(response.contains(HomeIdentity.documentId(home)));
+    }
+
+    @Test
+    void testEditingToolRequiresHomeIdBeforeDispatch() throws Exception {
+        java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
+        commandRegistry.register("create_wall", (request, accessor) -> {
+            called.set(true);
+            return Response.ok(Collections.emptyMap());
+        });
+        String sessionId = initializeSession();
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"create_wall\",\"arguments\":{}}}";
+        HttpExchange exchange = createPostExchange(body, sessionId, null);
+        ByteArrayOutputStream responseBody = captureResponseBody(exchange);
+
+        handler.handle(exchange);
+
+        assertFalse(called.get());
+        assertTrue(responseBody.toString(StandardCharsets.UTF_8.name())
+                .contains("Missing required global parameter 'homeId'"));
+    }
+
+    @Test
     void testToolsListWithoutSessionReturns400() throws Exception {
         String body = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}";
         HttpExchange exchange = createPostExchange(body, null, null);
@@ -194,8 +256,8 @@ class McpRequestHandlerTest {
 
     @Test
     void testToolsCallWithToolNameFromDescriptor() throws Exception {
-        // Register with action "create_walls" but toolName "create_room"
-        registerTestTool("create_walls", "Create room walls", "create_room");
+        // Register an alias without coupling this routing test to editing safety checks.
+        registerTestTool("aliased_action", "Create room walls", "create_room");
 
         String sessionId = initializeSession();
 

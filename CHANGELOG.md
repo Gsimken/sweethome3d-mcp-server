@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added in 1.4.0
+- Global `homeId` / `documentId` guard on every MCP tool. `homeId` is required for modifying
+  tools, and calls addressed to a different active document are rejected before dispatch.
+- `health_check`, `list_instances`, `activate_home`, and `connect_instance` for safer session
+  recovery and explicit switching between documents open in one Sweet Home 3D process.
+- `validate_wall_junctions` for near-miss endpoints and inconsistent stored wall links.
+- `save_as_copy` plus atomic writes and timestamped backups for existing save targets.
+
+### Fixed in 1.4.0
+- `place_door_or_window` now creates a native `HomeDoorOrWindow` instead of a generic
+  `HomePieceOfFurniture`, remains bound to its host wall, and stores opening mechanism,
+  hinge, swing, type, and relative-position semantics.
+
+### Changed in 1.4.0
+- `modify_wall` preserves adjoining endpoints, matching room corners, and native wall-bound
+  openings by default when its geometry changes.
+- `check_clearances` supports level/object/room/ignore/category filters, excludes roof and
+  cladding helper geometry by default, ignores narrow-gap candidates separated by a wall,
+  and returns the footprint polygons involved in each conflict.
+- Version bumped to 1.4.0.
+
 ### Added
 - `get_document_context` to identify the exact file, process, endpoint and selected level
   before an AI edits a home.

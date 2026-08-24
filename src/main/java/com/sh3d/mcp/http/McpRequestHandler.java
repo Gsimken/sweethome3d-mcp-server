@@ -1,6 +1,7 @@
 package com.sh3d.mcp.http;
 
 import com.sh3d.mcp.bridge.HomeAccessor;
+import com.sh3d.mcp.bridge.HomeIdentity;
 import com.sh3d.mcp.command.CommandDescriptor;
 import com.sh3d.mcp.command.CommandHandler;
 import com.sh3d.mcp.command.CommandRegistry;
@@ -18,6 +19,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -37,6 +41,17 @@ public class McpRequestHandler implements HttpHandler {
 
     /** Maximum allowed request body size (10 MB). Bodies exceeding this limit result in HTTP 413. */
     static final int MAX_REQUEST_BODY_SIZE = 10 * 1024 * 1024;
+
+    private static final Set<String> HOME_MUTATING_ACTIONS = new HashSet<>(Arrays.asList(
+            "checkpoint", "restore_checkpoint", "add_dimension_line", "add_label", "add_level",
+            "apply_texture", "attach_furniture_to_wall", "clear_scene", "connect_walls",
+            "configure_staircase", "create_room_polygon", "create_wall", "create_walls",
+            "delete_furniture", "delete_level", "delete_room", "delete_wall", "duplicate_objects",
+            "generate_shape", "modify_furniture", "modify_room", "modify_wall",
+            "place_door_or_window", "place_furniture", "layout_alternatives", "render_photo",
+            "load_home", "save_home", "save_as_copy", "export_plan_image", "export_svg",
+            "export_to_obj", "set_camera", "set_environment", "set_selected_level",
+            "store_camera", "group_furniture", "ungroup_furniture", "batch_commands"));
 
     private final CommandRegistry commandRegistry;
     private final HomeAccessor accessor;
@@ -196,7 +211,7 @@ public class McpRequestHandler implements HttpHandler {
                 String toolName = descriptor.getToolName();
                 tool.put("name", (toolName != null && !toolName.isEmpty()) ? toolName : action);
                 tool.put("description", descriptor.getDescription());
-                tool.put("inputSchema", descriptor.getSchema());
+                tool.put("inputSchema", withDocumentIdentity(descriptor.getSchema(), action));
                 tools.add(tool);
             }
         }
@@ -229,7 +244,7 @@ public class McpRequestHandler implements HttpHandler {
         Map<String, Object> arguments;
         Object argsObj = params.get("arguments");
         if (argsObj instanceof Map) {
-            arguments = (Map<String, Object>) argsObj;
+            arguments = new LinkedHashMap<>((Map<String, Object>) argsObj);
         } else {
             arguments = Collections.emptyMap();
         }
@@ -240,6 +255,36 @@ public class McpRequestHandler implements HttpHandler {
             sendJson(exchange, 200, JsonRpcProtocol.formatError(id,
                     JsonRpcProtocol.METHOD_NOT_FOUND, "Unknown tool: " + toolName));
             return;
+        }
+
+        // homeId/documentId are global routing guards, not handler-specific parameters.
+        Object homeIdValue = arguments.remove("homeId");
+        Object documentIdValue = arguments.remove("documentId");
+        String requestedHomeId = homeIdValue != null ? homeIdValue.toString() : null;
+        String requestedDocumentId = documentIdValue != null ? documentIdValue.toString() : null;
+        if (requestedHomeId != null && requestedDocumentId != null
+                && !requestedHomeId.equals(requestedDocumentId)) {
+            Response error = Response.error("homeId and documentId refer to different documents");
+            sendJson(exchange, 200, JsonRpcProtocol.formatToolCallResult(id, error, null));
+            return;
+        }
+        String requestedIdentity = requestedHomeId != null ? requestedHomeId : requestedDocumentId;
+        if (requestedIdentity == null && HOME_MUTATING_ACTIONS.contains(action)) {
+            Response error = Response.error("Missing required global parameter 'homeId'. Call "
+                    + "get_document_context first, then pass its homeId to this editing tool.");
+            sendJson(exchange, 200, JsonRpcProtocol.formatToolCallResult(id, error, null));
+            return;
+        }
+        if (requestedIdentity != null) {
+            String activeIdentity = accessor.runOnEDT(
+                    () -> HomeIdentity.documentId(accessor.getHome()));
+            if (!requestedIdentity.equals(activeIdentity)) {
+                Response error = Response.error("Document mismatch: requested homeId '"
+                        + requestedIdentity + "' but this MCP endpoint currently serves '"
+                        + activeIdentity + "'. Call get_document_context and reconnect to the intended instance.");
+                sendJson(exchange, 200, JsonRpcProtocol.formatToolCallResult(id, error, null));
+                return;
+            }
         }
 
         // Dispatch через CommandRegistry
@@ -258,6 +303,32 @@ public class McpRequestHandler implements HttpHandler {
         }
 
         sendJson(exchange, 200, JsonRpcProtocol.formatToolCallResult(id, cmdResponse, warning));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> withDocumentIdentity(Map<String, Object> original, String action) {
+        Map<String, Object> schema = new LinkedHashMap<>(original);
+        Object propertiesValue = original.get("properties");
+        Map<String, Object> properties = propertiesValue instanceof Map
+                ? new LinkedHashMap<>((Map<String, Object>) propertiesValue)
+                : new LinkedHashMap<>();
+        Map<String, Object> homeId = new LinkedHashMap<>();
+        homeId.put("type", "string");
+        homeId.put("description", "Stable homeId from get_document_context. When supplied, the call is "
+                + "rejected if this endpoint serves a different Sweet Home 3D document.");
+        properties.put("homeId", homeId);
+        Map<String, Object> documentId = new LinkedHashMap<>(homeId);
+        documentId.put("description", "Alias of homeId for clients that use documentId terminology.");
+        properties.put("documentId", documentId);
+        schema.put("properties", properties);
+        if (HOME_MUTATING_ACTIONS.contains(action)) {
+            Object requiredValue = original.get("required");
+            List<String> required = requiredValue instanceof List
+                    ? new ArrayList<>((List<String>) requiredValue) : new ArrayList<>();
+            if (!required.contains("homeId")) required.add("homeId");
+            schema.put("required", required);
+        }
+        return schema;
     }
 
     /**

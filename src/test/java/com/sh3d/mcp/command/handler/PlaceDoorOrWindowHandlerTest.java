@@ -1,19 +1,21 @@
 package com.sh3d.mcp.command.handler;
 
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
+import com.eteks.sweethome3d.model.CatalogDoorOrWindow;
 import com.eteks.sweethome3d.model.FurnitureCatalog;
 import com.eteks.sweethome3d.model.FurnitureCategory;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.HomeDoorOrWindow;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.model.Wall;
+import com.eteks.sweethome3d.model.Sash;
 import com.sh3d.mcp.bridge.HomeAccessor;
 import com.sh3d.mcp.protocol.Request;
 import com.sh3d.mcp.protocol.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -37,15 +39,8 @@ class PlaceDoorOrWindowHandlerTest {
         FurnitureCategory windowsCategory = new FurnitureCategory("Windows");
         FurnitureCategory furnitureCategory = new FurnitureCategory("Living Room");
 
-        // SH3D bug: простой конструктор не передаёт doorOrWindow в master-конструктор.
-        // Используем reflection для установки private final поля.
-        CatalogPieceOfFurniture door = new CatalogPieceOfFurniture(
-                "Front Door", null, null, 80f, 10f, 210f, false, false);
-        setDoorOrWindow(door, true);
-
-        CatalogPieceOfFurniture window = new CatalogPieceOfFurniture(
-                "Double Window", null, null, 120f, 8f, 100f, false, false);
-        setDoorOrWindow(window, true);
+        CatalogPieceOfFurniture door = nativeOpening("Front Door", 80f, 10f, 210f, 0f);
+        CatalogPieceOfFurniture window = nativeOpening("Double Window", 120f, 8f, 100f, 90f);
 
         // isDoorOrWindow = false — regular furniture
         CatalogPieceOfFurniture table = new CatalogPieceOfFurniture(
@@ -61,16 +56,10 @@ class PlaceDoorOrWindowHandlerTest {
         accessor = new HomeAccessor(home, prefs);
     }
 
-    /**
-     * Устанавливает doorOrWindow через reflection.
-     * Простой конструктор CatalogPieceOfFurniture (SH3D 7.x) не передаёт
-     * этот параметр в master-конструктор — баг в цепочке делегирования.
-     */
-    private static void setDoorOrWindow(CatalogPieceOfFurniture piece, boolean value)
-            throws Exception {
-        Field field = CatalogPieceOfFurniture.class.getDeclaredField("doorOrWindow");
-        field.setAccessible(true);
-        field.set(piece, value);
+    private static CatalogDoorOrWindow nativeOpening(String name, float width, float depth,
+                                                      float height, float elevation) {
+        return new CatalogDoorOrWindow(name, null, null, width, depth, height, elevation,
+                false, 1f, 0f, new Sash[0], null, null, false, 0f, true);
     }
 
     private Wall addWall(float xStart, float yStart, float xEnd, float yEnd) {
@@ -111,6 +100,29 @@ class PlaceDoorOrWindowHandlerTest {
 
         assertEquals(1, home.getFurniture().size());
         assertTrue(home.getFurniture().get(0).isDoorOrWindow());
+        assertInstanceOf(HomeDoorOrWindow.class, home.getFurniture().get(0));
+        assertTrue(((HomeDoorOrWindow) home.getFurniture().get(0)).isBoundToWall());
+        assertEquals(wall.getId(), home.getFurniture().get(0).getProperty("mcp.hostWallId"));
+    }
+
+    @Test
+    void testOpeningSemanticsArePersisted() {
+        Wall wall = addWall(0, 0, 500, 0);
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("name", "Front Door");
+        params.put("wallId", wall.getId());
+        params.put("openingMechanism", "sliding");
+        params.put("hingeSide", "none");
+        params.put("swingDirection", "none");
+
+        Response response = handler.execute(new Request("place_door_or_window", params), accessor);
+
+        assertTrue(response.isOk());
+        HomePieceOfFurniture opening = home.getFurniture().get(0);
+        assertEquals("door", opening.getProperty("mcp.openingType"));
+        assertEquals("sliding", opening.getProperty("mcp.openingMechanism"));
+        assertEquals("none", opening.getProperty("mcp.hingeSide"));
+        assertEquals("none", opening.getProperty("mcp.swingDirection"));
     }
 
     @Test
@@ -543,12 +555,8 @@ class PlaceDoorOrWindowHandlerTest {
         FurnitureCatalog catalog = new FurnitureCatalog();
         FurnitureCategory cat = new FurnitureCategory("Doors");
 
-        CatalogPieceOfFurniture door = new CatalogPieceOfFurniture(
-                "Door", null, null, 87f, 10f, 210f, false, false);
-        setDoorOrWindow(door, true);
-        CatalogPieceOfFurniture frontDoor = new CatalogPieceOfFurniture(
-                "Front Door", null, null, 91.5f, 10f, 210f, false, false);
-        setDoorOrWindow(frontDoor, true);
+        CatalogPieceOfFurniture door = nativeOpening("Door", 87f, 10f, 210f, 0f);
+        CatalogPieceOfFurniture frontDoor = nativeOpening("Front Door", 91.5f, 10f, 210f, 0f);
 
         catalog.add(cat, frontDoor); // front door added FIRST
         catalog.add(cat, door);       // exact match added SECOND
@@ -579,10 +587,10 @@ class PlaceDoorOrWindowHandlerTest {
         FurnitureCatalog catalog = new FurnitureCatalog();
         FurnitureCategory cat = new FurnitureCategory("Doors");
 
-        CatalogPieceOfFurniture door = new CatalogPieceOfFurniture(
+        CatalogPieceOfFurniture door = new CatalogDoorOrWindow(
                 "door-001", "Front Door", null, null, null,
-                80f, 10f, 210f, 0f, false, null, null, true, null, null);
-        setDoorOrWindow(door, true);
+                80f, 10f, 210f, 0f, false, 1f, 0f, new Sash[0],
+                null, null, false, null, null);
         catalog.add(cat, door);
 
         Home localHome = new Home();

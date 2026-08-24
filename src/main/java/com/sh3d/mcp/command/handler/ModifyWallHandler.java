@@ -6,6 +6,9 @@ import com.sh3d.mcp.command.util.ColorParser;
 import com.sh3d.mcp.command.util.FormatUtil;
 
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.HomeDoorOrWindow;
+import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Wall;
 import com.sh3d.mcp.bridge.HomeAccessor;
 import com.sh3d.mcp.bridge.ObjectResolver;
@@ -17,6 +20,7 @@ import com.sh3d.mcp.command.util.SchemaBuilder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 /**
  * Обработчик команды "modify_wall".
@@ -43,6 +47,9 @@ public class ModifyWallHandler implements CommandHandler, CommandDescriptor {
         }
 
         Map<String, Object> params = request.getParams();
+        boolean preserveConnections = booleanDefault(request.getBoolean("preserveConnections"), true);
+        boolean preserveOpenings = booleanDefault(request.getBoolean("preserveOpenings"), true);
+        boolean preserveRooms = booleanDefault(request.getBoolean("preserveRooms"), true);
         boolean hasModifiable = MODIFIABLE_KEYS.stream().anyMatch(params::containsKey);
         if (!hasModifiable) {
             return Response.error("No modifiable properties provided. "
@@ -96,6 +103,17 @@ public class ModifyWallHandler implements CommandHandler, CommandDescriptor {
                 return null;
             }
 
+            float oldXStart = wall.getXStart();
+            float oldYStart = wall.getYStart();
+            float oldXEnd = wall.getXEnd();
+            float oldYEnd = wall.getYEnd();
+            boolean geometryChanged = params.containsKey("xStart") || params.containsKey("yStart")
+                    || params.containsKey("xEnd") || params.containsKey("yEnd");
+
+            List<OpeningAnchor> openingAnchors = geometryChanged && preserveOpenings
+                    ? captureOpenings(home, wall, oldXStart, oldYStart, oldXEnd, oldYEnd)
+                    : java.util.Collections.emptyList();
+
             // Coordinates
             if (params.containsKey("xStart")) {
                 wall.setXStart(request.getFloat("xStart"));
@@ -108,6 +126,23 @@ public class ModifyWallHandler implements CommandHandler, CommandDescriptor {
             }
             if (params.containsKey("yEnd")) {
                 wall.setYEnd(request.getFloat("yEnd"));
+            }
+
+            int connectedWallsUpdated = 0;
+            int roomPointsUpdated = 0;
+            int openingsUpdated = 0;
+            if (geometryChanged) {
+                if (preserveConnections) {
+                    connectedWallsUpdated = updateConnections(home, wall,
+                            oldXStart, oldYStart, oldXEnd, oldYEnd);
+                }
+                if (preserveRooms) {
+                    roomPointsUpdated = updateRooms(home, wall,
+                            oldXStart, oldYStart, oldXEnd, oldYEnd);
+                }
+                if (preserveOpenings) {
+                    openingsUpdated = restoreOpenings(wall, openingAnchors);
+                }
             }
 
             // Height (already validated)
@@ -177,7 +212,14 @@ public class ModifyWallHandler implements CommandHandler, CommandDescriptor {
             }
 
             // Build response
-            return buildResponse(id, wall);
+            Map<String, Object> result = new LinkedHashMap<>(buildResponse(id, wall));
+            result.put("preservedConnections", preserveConnections);
+            result.put("preservedOpenings", preserveOpenings);
+            result.put("preservedRooms", preserveRooms);
+            result.put("connectedWallsUpdated", connectedWallsUpdated);
+            result.put("roomPointsUpdated", roomPointsUpdated);
+            result.put("openingsUpdated", openingsUpdated);
+            return result;
         });
 
         if (data == null) {
@@ -189,6 +231,129 @@ public class ModifyWallHandler implements CommandHandler, CommandDescriptor {
 
     private static Map<String, Object> buildResponse(String id, Wall wall) {
         return FormatUtil.buildWallInfo(wall);
+    }
+
+    private static boolean booleanDefault(Boolean value, boolean defaultValue) {
+        return value == null ? defaultValue : value;
+    }
+
+    private static int updateConnections(Home home, Wall moved,
+                                         float oldXs, float oldYs, float oldXe, float oldYe) {
+        int updated = 0;
+        for (Wall candidate : home.getWalls()) {
+            if (candidate == moved || candidate.getLevel() != moved.getLevel()) continue;
+            boolean changed = false;
+            if (moved(oldXs, oldYs, moved.getXStart(), moved.getYStart())
+                    && near(candidate.getXStart(), candidate.getYStart(), oldXs, oldYs)) {
+                candidate.setXStart(moved.getXStart());
+                candidate.setYStart(moved.getYStart());
+                changed = true;
+            } else if (moved(oldXs, oldYs, moved.getXStart(), moved.getYStart())
+                    && near(candidate.getXEnd(), candidate.getYEnd(), oldXs, oldYs)) {
+                candidate.setXEnd(moved.getXStart());
+                candidate.setYEnd(moved.getYStart());
+                changed = true;
+            }
+            if (moved(oldXe, oldYe, moved.getXEnd(), moved.getYEnd())
+                    && near(candidate.getXStart(), candidate.getYStart(), oldXe, oldYe)) {
+                candidate.setXStart(moved.getXEnd());
+                candidate.setYStart(moved.getYEnd());
+                changed = true;
+            } else if (moved(oldXe, oldYe, moved.getXEnd(), moved.getYEnd())
+                    && near(candidate.getXEnd(), candidate.getYEnd(), oldXe, oldYe)) {
+                candidate.setXEnd(moved.getXEnd());
+                candidate.setYEnd(moved.getYEnd());
+                changed = true;
+            }
+            if (changed) updated++;
+        }
+        return updated;
+    }
+
+    private static int updateRooms(Home home, Wall moved,
+                                   float oldXs, float oldYs, float oldXe, float oldYe) {
+        int updated = 0;
+        for (Room room : home.getRooms()) {
+            if (room.getLevel() != moved.getLevel()) continue;
+            float[][] points = room.getPoints();
+            boolean changed = false;
+            for (int i = 0; i < points.length; i++) {
+                if (moved(oldXs, oldYs, moved.getXStart(), moved.getYStart())
+                        && near(points[i][0], points[i][1], oldXs, oldYs)) {
+                    points[i][0] = moved.getXStart();
+                    points[i][1] = moved.getYStart();
+                    updated++;
+                    changed = true;
+                } else if (moved(oldXe, oldYe, moved.getXEnd(), moved.getYEnd())
+                        && near(points[i][0], points[i][1], oldXe, oldYe)) {
+                    points[i][0] = moved.getXEnd();
+                    points[i][1] = moved.getYEnd();
+                    updated++;
+                    changed = true;
+                }
+            }
+            if (changed) room.setPoints(points);
+        }
+        return updated;
+    }
+
+    private static List<OpeningAnchor> captureOpenings(Home home, Wall wall,
+                                                        float xs, float ys, float xe, float ye) {
+        List<OpeningAnchor> result = new java.util.ArrayList<>();
+        double dx = xe - xs;
+        double dy = ye - ys;
+        double lengthSquared = dx * dx + dy * dy;
+        if (lengthSquared == 0d) return result;
+        for (HomePieceOfFurniture piece : home.getFurniture()) {
+            if (!(piece instanceof HomeDoorOrWindow) || piece.getLevel() != wall.getLevel()) continue;
+            String hostWallId = piece.getProperty("mcp.hostWallId");
+            double position = ((piece.getX() - xs) * dx + (piece.getY() - ys) * dy) / lengthSquared;
+            double distance = Math.abs((piece.getX() - xs) * dy - (piece.getY() - ys) * dx)
+                    / Math.sqrt(lengthSquared);
+            if (wall.getId().equals(hostWallId)
+                    || (position >= 0d && position <= 1d
+                    && distance <= wall.getThickness() / 2d + piece.getDepth() / 2d + 2d)) {
+                result.add(new OpeningAnchor((HomeDoorOrWindow) piece,
+                        Math.max(0d, Math.min(1d, position))));
+            }
+        }
+        return result;
+    }
+
+    private static int restoreOpenings(Wall wall, List<OpeningAnchor> anchors) {
+        float angle = (float) Math.atan2(wall.getYEnd() - wall.getYStart(),
+                wall.getXEnd() - wall.getXStart());
+        for (OpeningAnchor anchor : anchors) {
+            float position = (float) anchor.position;
+            anchor.opening.setX(wall.getXStart() + position * (wall.getXEnd() - wall.getXStart()));
+            anchor.opening.setY(wall.getYStart() + position * (wall.getYEnd() - wall.getYStart()));
+            anchor.opening.setAngle(angle);
+            if (anchor.opening.getDepth() < wall.getThickness()) {
+                anchor.opening.setDepth(wall.getThickness());
+            }
+            anchor.opening.setBoundToWall(true);
+            anchor.opening.setProperty("mcp.hostWallId", wall.getId());
+            anchor.opening.setProperty("mcp.wallPosition", Float.toString(position));
+        }
+        return anchors.size();
+    }
+
+    private static boolean near(float x1, float y1, float x2, float y2) {
+        return Math.hypot(x1 - x2, y1 - y2) <= 1f;
+    }
+
+    private static boolean moved(float oldX, float oldY, float newX, float newY) {
+        return oldX != newX || oldY != newY;
+    }
+
+    private static final class OpeningAnchor {
+        final HomeDoorOrWindow opening;
+        final double position;
+
+        OpeningAnchor(HomeDoorOrWindow opening, double position) {
+            this.opening = opening;
+            this.position = position;
+        }
     }
 
     // --- Color parsing ---
@@ -278,6 +443,12 @@ public class ModifyWallHandler implements CommandHandler, CommandDescriptor {
                 .number("shininess", "Shininess for both sides: 0.0 (matte) to 1.0 (glossy)")
                 .number("leftSideShininess", "Left side shininess: 0.0 (matte) to 1.0 (glossy)")
                 .number("rightSideShininess", "Right side shininess: 0.0 (matte) to 1.0 (glossy)")
+                .boolWithDefault("preserveConnections",
+                        "Move adjoining wall endpoints with edited wall endpoints", true)
+                .boolWithDefault("preserveOpenings",
+                        "Keep native doors/windows linked and positioned along the edited wall", true)
+                .boolWithDefault("preserveRooms",
+                        "Move matching room polygon corners with edited wall endpoints", true)
                 .build();
     }
 

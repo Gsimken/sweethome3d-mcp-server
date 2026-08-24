@@ -91,6 +91,29 @@ class ModifyWallHandlerTest {
     }
 
     @Test
+    void testCoordinateEditPreservesConnectedWallEndpointAndRoomCorner() {
+        Wall moved = addWall(0, 0, 500, 0);
+        Wall connected = addWall(500, 0, 500, 300);
+        com.eteks.sweethome3d.model.Room room = new com.eteks.sweethome3d.model.Room(
+                new float[][]{{0, 0}, {500, 0}, {500, 300}, {0, 300}});
+        home.addRoom(room);
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("id", moved.getId());
+        params.put("xEnd", 550.0);
+        params.put("yEnd", 25.0);
+
+        Response response = handler.execute(new Request("modify_wall", params), accessor);
+
+        assertTrue(response.isOk());
+        assertEquals(550f, connected.getXStart(), 0.01f);
+        assertEquals(25f, connected.getYStart(), 0.01f);
+        assertEquals(550f, room.getPoints()[1][0], 0.01f);
+        assertEquals(25f, room.getPoints()[1][1], 0.01f);
+        assertEquals(1, response.getData().get("connectedWallsUpdated"));
+        assertEquals(1, response.getData().get("roomPointsUpdated"));
+    }
+
+    @Test
     void testCoordinatesInSchemaNotRequired() {
         Map<String, Object> schema = handler.getSchema();
         @SuppressWarnings("unchecked")

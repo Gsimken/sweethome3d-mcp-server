@@ -3,6 +3,7 @@ package com.sh3d.mcp.command.handler;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.Level;
 import com.sh3d.mcp.bridge.HomeAccessor;
+import com.sh3d.mcp.bridge.HomeIdentity;
 import com.sh3d.mcp.command.CommandDescriptor;
 import com.sh3d.mcp.command.CommandHandler;
 import com.sh3d.mcp.command.util.SchemaBuilder;
@@ -31,8 +32,10 @@ public class GetDocumentContextHandler implements CommandHandler, CommandDescrip
             long processId = ProcessHandle.current().pid();
 
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("documentSessionId", processId + ":"
-                    + Integer.toHexString(System.identityHashCode(home)));
+            String documentId = HomeIdentity.documentId(home);
+            result.put("homeId", documentId);
+            result.put("documentId", documentId);
+            result.put("documentSessionId", documentId);
             result.put("processId", processId);
             result.put("mcpEndpoint", "http://127.0.0.1:" + port + "/mcp");
             result.put("name", name);
@@ -86,7 +89,8 @@ public class GetDocumentContextHandler implements CommandHandler, CommandDescrip
     public String getDescription() {
         return "Identifies the exact Sweet Home 3D document, process, MCP endpoint, selected level, "
                 + "dirty state, and object counts. Call this before any edit and compare "
-                + "documentSessionId/filePath with the intended home. Separate Sweet Home 3D processes "
+                + "homeId/filePath with the intended home. Pass homeId to every later tool call so "
+                + "the server can reject edits aimed at another document. Separate Sweet Home 3D processes "
                 + "must use different ports.";
     }
 

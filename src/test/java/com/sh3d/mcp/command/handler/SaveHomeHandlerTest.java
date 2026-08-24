@@ -8,16 +8,22 @@ import com.sh3d.mcp.protocol.Request;
 import com.sh3d.mcp.protocol.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.nio.file.Path;
+import java.nio.file.Files;
 
 import static com.sh3d.mcp.command.handler.TestFixtures.createAccessor;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SaveHomeHandlerTest {
+
+    @TempDir
+    Path tempDir;
 
     private SaveHomeHandler handler;
 
@@ -120,5 +126,27 @@ class SaveHomeHandlerTest {
 
         assertTrue(response.isError());
         assertTrue(response.getMessage().contains("No file path"));
+    }
+
+    @Test
+    void testSaveAsCopyDoesNotChangeActiveDocumentAndCreatesBackup() throws Exception {
+        Home home = new Home();
+        home.setName(tempDir.resolve("base.sh3d").toString());
+        home.setModified(true);
+        Path target = tempDir.resolve("proposal.sh3d");
+        Files.write(target, new byte[]{1, 2, 3});
+        SaveHomeHandler copyHandler = new SaveHomeHandler(true);
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("filePath", target.toString());
+
+        Response response = copyHandler.execute(new Request("save_as_copy", params),
+                createAccessor(home));
+
+        assertTrue(response.isOk(), response.getMessage());
+        assertEquals(tempDir.resolve("base.sh3d").toString(), home.getName());
+        assertTrue(home.isModified());
+        assertNotNull(response.getData().get("backupPath"));
+        assertTrue(Files.exists(Path.of(response.getData().get("backupPath").toString())));
+        assertEquals(true, response.getData().get("copyOnly"));
     }
 }

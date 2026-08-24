@@ -3,6 +3,7 @@ package com.sh3d.mcp.plugin;
 import com.eteks.sweethome3d.plugin.Plugin;
 import com.eteks.sweethome3d.plugin.PluginAction;
 import com.sh3d.mcp.bridge.HomeAccessor;
+import com.sh3d.mcp.bridge.HomeIdentity;
 import com.sh3d.mcp.bridge.LayoutAlternativeManager;
 import com.sh3d.mcp.command.handler.AddDimensionLineHandler;
 import com.sh3d.mcp.command.handler.AddLabelHandler;
@@ -32,6 +33,9 @@ import com.sh3d.mcp.command.handler.ExportToObjHandler;
 import com.sh3d.mcp.command.handler.GenerateShapeHandler;
 import com.sh3d.mcp.command.handler.GetCamerasHandler;
 import com.sh3d.mcp.command.handler.GetDocumentContextHandler;
+import com.sh3d.mcp.command.handler.HealthCheckHandler;
+import com.sh3d.mcp.command.handler.ListInstancesHandler;
+import com.sh3d.mcp.command.handler.ActivateHomeHandler;
 import com.sh3d.mcp.command.handler.ModifyFurnitureHandler;
 import com.sh3d.mcp.command.handler.ModifyRoomHandler;
 import com.sh3d.mcp.command.handler.ModifyWallHandler;
@@ -56,6 +60,7 @@ import com.sh3d.mcp.command.handler.SetEnvironmentHandler;
 import com.sh3d.mcp.command.handler.SetSelectedLevelHandler;
 import com.sh3d.mcp.command.handler.StoreCameraHandler;
 import com.sh3d.mcp.command.handler.UngroupFurnitureHandler;
+import com.sh3d.mcp.command.handler.ValidateWallJunctionsHandler;
 import com.sh3d.mcp.config.PluginConfig;
 import com.sh3d.mcp.http.HttpMcpServer;
 import com.eteks.sweethome3d.viewcontroller.ExportableView;
@@ -63,7 +68,12 @@ import com.eteks.sweethome3d.viewcontroller.PlanView;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -87,6 +97,7 @@ public class SH3DMcpPlugin extends Plugin {
 
     /** Tracks all active Plugin instances in insertion order (most recent = last). */
     private static final LinkedHashSet<SH3DMcpPlugin> activeInstances = new LinkedHashSet<>();
+    private static SH3DMcpPlugin currentInstance;
 
     private HttpMcpServer httpServer;
     private PluginConfig config;
@@ -121,6 +132,7 @@ public class SH3DMcpPlugin extends Plugin {
                 sharedServer.switchContext(registry, accessor);
                 LOG.info("SH3D MCP Plugin initialized — additional Home, context switched");
             }
+            currentInstance = this;
             httpServer = sharedServer;
         }
 
@@ -139,6 +151,7 @@ public class SH3DMcpPlugin extends Plugin {
                     LOG.info("SH3D MCP Plugin destroyed — last Home, server stopped");
                 }
                 sharedServer = null;
+                currentInstance = null;
             } else {
                 // The closed Home was the current context — switch to the most recent remaining
                 SH3DMcpPlugin remaining = null;
@@ -147,6 +160,7 @@ public class SH3DMcpPlugin extends Plugin {
                 }
                 if (remaining != null && sharedServer != null) {
                     sharedServer.switchContext(remaining.registry, remaining.accessor);
+                    currentInstance = remaining;
                     LOG.info("SH3D MCP Plugin destroyed — context switched to remaining Home");
                 }
             }
@@ -234,11 +248,17 @@ public class SH3DMcpPlugin extends Plugin {
         registry.register("modify_furniture", new ModifyFurnitureHandler());
         registry.register("modify_room", new ModifyRoomHandler());
         registry.register("modify_wall", new ModifyWallHandler());
+        registry.register("validate_wall_junctions", new ValidateWallJunctionsHandler());
         registry.register("place_door_or_window", new PlaceDoorOrWindowHandler());
         registry.register("place_furniture", new PlaceFurnitureHandler());
         registry.register("get_state", new GetStateHandler());
         registry.register("get_document_context", new GetDocumentContextHandler(
                 config != null ? config.getPort() : PluginConfig.DEFAULT_PORT));
+        registry.register("health_check", new HealthCheckHandler(
+                config != null ? config.getPort() : PluginConfig.DEFAULT_PORT));
+        registry.register("list_instances", new ListInstancesHandler(SH3DMcpPlugin::listOpenHomes));
+        registry.register("activate_home", new ActivateHomeHandler(SH3DMcpPlugin::activateOpenHome));
+        registry.register("connect_instance", new ActivateHomeHandler(SH3DMcpPlugin::activateOpenHome));
         registry.register("inspect_objects", new InspectObjectsHandler());
         registry.register("list_installed_plugins", new ListInstalledPluginsHandler());
         registry.register("layout_alternatives",
@@ -250,6 +270,7 @@ public class SH3DMcpPlugin extends Plugin {
         registry.register("render_photo", new RenderPhotoHandler());
         registry.register("load_home", new LoadHomeHandler());
         registry.register("save_home", new SaveHomeHandler());
+        registry.register("save_as_copy", new SaveHomeHandler(true));
         registry.register("export_plan_image", new ExportPlanImageHandler(planView));
         registry.register("export_svg", new ExportSvgHandler(planView));
         registry.register("export_to_obj", new ExportToObjHandler());
@@ -262,5 +283,66 @@ public class SH3DMcpPlugin extends Plugin {
         registry.register("ungroup_furniture", new UngroupFurnitureHandler());
         registry.register("batch_commands", new BatchCommandsHandler(registry, checkpointManager));
         return registry;
+    }
+
+    private static List<Map<String, Object>> listOpenHomes() {
+        List<SH3DMcpPlugin> snapshot;
+        SH3DMcpPlugin active;
+        synchronized (LOCK) {
+            snapshot = new ArrayList<>(activeInstances);
+            active = currentInstance;
+        }
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (SH3DMcpPlugin instance : snapshot) {
+            Map<String, Object> info = instance.accessor.runOnEDT(() -> {
+                com.eteks.sweethome3d.model.Home home = instance.accessor.getHome();
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("homeId", HomeIdentity.documentId(home));
+                item.put("documentId", HomeIdentity.documentId(home));
+                item.put("name", home.getName());
+                item.put("filePath", absolutePath(home.getName()));
+                item.put("modified", home.isModified());
+                item.put("active", instance == active);
+                item.put("processId", ProcessHandle.current().pid());
+                item.put("port", instance.config != null
+                        ? instance.config.getPort() : PluginConfig.DEFAULT_PORT);
+                return item;
+            });
+            result.add(info);
+        }
+        return result;
+    }
+
+    private static Boolean activateOpenHome(String homeId) {
+        List<SH3DMcpPlugin> snapshot;
+        synchronized (LOCK) {
+            snapshot = new ArrayList<>(activeInstances);
+        }
+        for (SH3DMcpPlugin instance : snapshot) {
+            String candidate = instance.accessor.runOnEDT(
+                    () -> HomeIdentity.documentId(instance.accessor.getHome()));
+            if (candidate.equals(homeId)) {
+                synchronized (LOCK) {
+                    if (!activeInstances.contains(instance) || sharedServer == null) return false;
+                    sharedServer.switchContext(instance.registry, instance.accessor);
+                    currentInstance = instance;
+                    // Make this document the fallback context if another document closes.
+                    activeInstances.remove(instance);
+                    activeInstances.add(instance);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static String absolutePath(String name) {
+        if (name == null || name.trim().isEmpty()) return null;
+        try {
+            Path path = Paths.get(name);
+            return path.isAbsolute() ? path.normalize().toString() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

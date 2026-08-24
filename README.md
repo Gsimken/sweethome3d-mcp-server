@@ -93,7 +93,11 @@ For Claude Code, create `.mcp.json` in your project directory:
 
 ## Available Commands
 
-50 commands across 16 categories.
+56 commands across 16 categories.
+
+Every command accepts the stable `homeId` returned by `get_document_context`. It is required
+for commands that edit, load, save, render, or export, and the server rejects the call if the
+active document changed. This prevents a stale AI session from modifying the wrong open home.
 
 ### Scene
 
@@ -101,6 +105,9 @@ For Claude Code, create `.mcp.json` in your project directory:
 |---------|-------------|
 | `get_state` | Compact scene state: all object types, selection, camera, compass, home metadata, levels, and plugin properties |
 | `get_document_context` | Identify the exact document, process, MCP endpoint, selected level, file path, and modified state before editing |
+| `health_check` | Verify the live endpoint and active `homeId` after reconnecting |
+| `list_instances` | List all open documents reachable in the current Sweet Home 3D process |
+| `activate_home` / `connect_instance` | Switch the shared endpoint to another listed open document |
 | `clear_scene` | Remove all objects from the scene |
 
 ### Context & plugin compatibility
@@ -119,7 +126,7 @@ Long serialized plugin values are truncated to protect the AI context window.
 | Command | Description |
 |---------|-------------|
 | `analyze_architecture` | Classify exterior/partition walls, map rooms and openings, and identify fixed or protected installations |
-| `check_clearances` | Detect 3D-aware furniture collisions, wall intrusions, blocked door approaches, and narrow circulation gaps |
+| `check_clearances` | Filter by levels, rooms, objects and semantic categories; detect 3D-aware collisions, wall intrusions, blocked door approaches and narrow gaps; return conflict polygons |
 | `attach_furniture_to_wall` | Place TVs, shelves, and cabinets flush with a real wall and persist the relationship |
 | `configure_staircase` | Add levels, rise/run, ascent direction, steps, landing, opening, and wall semantics to a staircase model |
 | `layout_alternatives` | Save, compare, and restore independent named layout proposals without losing the base or another alternative |
@@ -130,7 +137,8 @@ Long serialized plugin values are truncated to protect the AI context window.
 |---------|-------------|
 | `create_wall` | Single wall between two points |
 | `create_walls` | Rectangular room (4 connected walls) |
-| `modify_wall` | Change height, thickness, color, arc, coordinates |
+| `modify_wall` | Change height, thickness, color, arc or coordinates while preserving adjoining endpoints, room corners, and wall-bound openings by default |
+| `validate_wall_junctions` | Report almost-connected endpoints and inconsistent stored wall links |
 | `delete_wall` | Delete wall by ID |
 | `connect_walls` | Connect two walls for correct corner rendering |
 
@@ -159,7 +167,7 @@ Long serialized plugin values are truncated to protect the AI context window.
 
 | Command | Description |
 |---------|-------------|
-| `place_door_or_window` | Place from catalog into a wall (auto-computes position and angle) |
+| `place_door_or_window` | Create a native wall-bound `HomeDoorOrWindow`, with host-wall, mechanism, hinge and swing semantics |
 
 ### Textures & Appearance
 
@@ -213,6 +221,7 @@ Long serialized plugin values are truncated to protect the AI context window.
 | Command | Description |
 |---------|-------------|
 | `save_home` | Save the scene to a `.sh3d` file |
+| `save_as_copy` | Atomically save an independent proposal without changing the active document; backs up an existing target |
 | `load_home` | Load a `.sh3d` file, replacing the current scene |
 
 ### Checkpoints (undo timeline)
@@ -255,7 +264,7 @@ cd sweethome3d-mcp-server
 ./mvnw test
 
 # The plugin artifact is at:
-# target/sh3d-mcp-plugin-1.3.0.sh3p
+# target/sh3d-mcp-plugin-1.4.0.sh3p
 ```
 
 > **Why the setup script?** `SweetHome3D.jar` is a 46 MB binary excluded from git.
@@ -269,7 +278,7 @@ The plugin is a single self-contained component with no external runtime depende
 
 - **`plugin`** — Entry point (`SH3DMcpPlugin`), settings dialog
 - **`http`** — Streamable HTTP MCP server (JSON-RPC 2.0, port 9877)
-- **`command`** — 50 command handlers, auto-registered via `CommandRegistry`
+- **`command`** — 56 command handlers, auto-registered via `CommandRegistry`
 - **`bridge`** — Thread-safe Sweet Home 3D API wrapper (`HomeAccessor` via EDT, `CheckpointManager`, `ObjectResolver`)
 - **`protocol`** — Hand-written JSON parser (zero external dependencies)
 - **`config`** — Plugin settings, Claude Desktop auto-configurator

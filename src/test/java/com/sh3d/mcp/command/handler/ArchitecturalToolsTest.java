@@ -72,6 +72,30 @@ class ArchitecturalToolsTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void clearanceFiltersExcludeIgnoredObjectsAndReturnConflictGeometry() {
+        HomePieceOfFurniture sofa = addFurniture(home, "Sofa", 100, 100);
+        HomePieceOfFurniture table = addFurniture(home, "Table", 100, 100);
+        Map<String, Object> initialParams = new LinkedHashMap<>();
+        initialParams.put("objectIds", java.util.Arrays.asList(sofa.getId(), table.getId()));
+        Response initial = new CheckClearancesHandler().execute(
+                new Request("check_clearances", initialParams), accessor);
+        assertTrue(initial.isOk());
+        List<Map<String, Object>> collisions =
+                (List<Map<String, Object>>) initial.getData().get("collisions");
+        assertEquals(1, collisions.size());
+        assertNotNull(collisions.get(0).get("firstFootprint"));
+
+        Map<String, Object> filteredParams = new LinkedHashMap<>();
+        filteredParams.put("ignoreIds", Collections.singletonList(table.getId()));
+        Response filtered = new CheckClearancesHandler().execute(
+                new Request("check_clearances", filteredParams), accessor);
+        Map<String, Object> summary = (Map<String, Object>) filtered.getData().get("summary");
+        assertEquals(0, summary.get("collisions"));
+        assertEquals(1, summary.get("objectsChecked"));
+    }
+
+    @Test
     void attachesFurnitureToDetectedInteriorWallSide() {
         Wall wall = addWall(home, 0, 0, 400, 0);
         addRoom(home, 0, 0, 400, 300);
@@ -136,5 +160,6 @@ class ArchitecturalToolsTest {
         assertEquals(true, response.getData().get("modified"));
         assertEquals("http://127.0.0.1:9877/mcp", response.getData().get("mcpEndpoint"));
         assertNotNull(response.getData().get("documentSessionId"));
+        assertEquals(response.getData().get("documentSessionId"), response.getData().get("homeId"));
     }
 }
